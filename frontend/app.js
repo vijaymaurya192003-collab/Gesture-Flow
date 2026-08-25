@@ -303,12 +303,12 @@ function renderOverviewTable() {
 
   tbody.innerHTML = currentMappings.map(m => `
     <tr>
-      <td><strong style="color:#f1f5f9;font-weight:700;">${m.gesture}</strong></td>
+      <td><strong class="table-gesture-name">${m.gesture}</strong></td>
       <td><span class="action-pill">${m.action}</span></td>
-      <td><span style="font-family:var(--font-mono);font-size:0.8rem;color:#94a3b8;">${m.cooldown_ms} ms</span></td>
-      <td><span style="font-family:var(--font-mono);font-weight:700;color:#38bdf8;">${Math.round(m.confidence_threshold * 100)}%</span></td>
-      <td><code style="font-size:0.75rem;color:#a5b4fc;">${m.hardware || 'AccessibilityService'}</code></td>
-      <td><span class="pill-badge" style="background:rgba(16,185,129,0.15);color:#34d399;border-color:rgba(16,185,129,0.3);">Ready</span></td>
+      <td><span class="table-cooldown">${m.cooldown_ms} ms</span></td>
+      <td><span class="table-conf">${Math.round(m.confidence_threshold * 100)}%</span></td>
+      <td><code class="table-target">${m.hardware || 'AccessibilityService'}</code></td>
+      <td><span class="badge badge-green">Ready</span></td>
     </tr>
   `).join("");
 }
