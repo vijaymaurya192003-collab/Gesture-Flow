@@ -523,6 +523,38 @@ function initCanvasSimulator() {
   const logEntries = document.getElementById("simLogEntries");
   const simButtons = document.querySelectorAll(".btn-gesture-sim");
 
+  const toggleGesture = document.getElementById("toggleGestureControl");
+  const toggleCursor = document.getElementById("toggleVirtualCursor");
+  const selectSens = document.getElementById("selectTouchpadSens");
+  const labelGesture = document.getElementById("labelGestureCtrl");
+  const labelCursor = document.getElementById("labelVirtualCursor");
+
+  let gestureControlEnabled = true;
+  let virtualCursorEnabled = true;
+  let touchpadSensitivity = 1.25;
+
+  toggleGesture?.addEventListener("change", (e) => {
+    gestureControlEnabled = e.target.checked;
+    if (labelGesture) {
+      labelGesture.textContent = gestureControlEnabled ? "ON" : "OFF";
+      labelGesture.className = gestureControlEnabled ? "text-accent" : "text-danger";
+    }
+  });
+
+  toggleCursor?.addEventListener("change", (e) => {
+    virtualCursorEnabled = e.target.checked;
+    if (labelCursor) {
+      labelCursor.textContent = virtualCursorEnabled ? "ON" : "OFF";
+      labelCursor.className = virtualCursorEnabled ? "text-accent" : "text-danger";
+    }
+  });
+
+  selectSens?.addEventListener("change", (e) => {
+    const val = e.target.value;
+    touchpadSensitivity = val === "LOW" ? 0.75 : (val === "HIGH" ? 2.0 : 1.25);
+    showToast(`Touchpad sensitivity set to ${val} (${touchpadSensitivity}x)`);
+  });
+
   const connections = [
     [0, 1], [1, 2], [2, 3], [3, 4],
     [0, 5], [5, 6], [6, 7], [7, 8],
@@ -540,6 +572,13 @@ function initCanvasSimulator() {
       {x: 0.56, y: 0.58}, {x: 0.56, y: 0.67}, {x: 0.56, y: 0.73}, {x: 0.56, y: 0.69},
       {x: 0.61, y: 0.61}, {x: 0.61, y: 0.69}, {x: 0.61, y: 0.75}, {x: 0.61, y: 0.70}
     ],
+    air_tap: [
+      {x: 0.50, y: 0.82}, {x: 0.44, y: 0.76}, {x: 0.38, y: 0.70}, {x: 0.32, y: 0.65}, {x: 0.40, y: 0.70},
+      {x: 0.46, y: 0.58}, {x: 0.46, y: 0.46}, {x: 0.46, y: 0.32}, {x: 0.46, y: 0.18},
+      {x: 0.51, y: 0.57}, {x: 0.51, y: 0.66}, {x: 0.51, y: 0.72}, {x: 0.51, y: 0.68},
+      {x: 0.56, y: 0.58}, {x: 0.56, y: 0.67}, {x: 0.56, y: 0.73}, {x: 0.56, y: 0.69},
+      {x: 0.61, y: 0.61}, {x: 0.61, y: 0.69}, {x: 0.61, y: 0.75}, {x: 0.61, y: 0.70}
+    ],
     pinch: [
       {x: 0.50, y: 0.82}, {x: 0.44, y: 0.76}, {x: 0.40, y: 0.68}, {x: 0.42, y: 0.50}, {x: 0.45, y: 0.36},
       {x: 0.46, y: 0.58}, {x: 0.46, y: 0.46}, {x: 0.46, y: 0.38}, {x: 0.46, y: 0.35},
@@ -547,19 +586,54 @@ function initCanvasSimulator() {
       {x: 0.56, y: 0.58}, {x: 0.56, y: 0.67}, {x: 0.56, y: 0.73}, {x: 0.56, y: 0.69},
       {x: 0.61, y: 0.61}, {x: 0.61, y: 0.69}, {x: 0.61, y: 0.75}, {x: 0.61, y: 0.70}
     ],
+    pinch_in: [
+      {x: 0.50, y: 0.82}, {x: 0.44, y: 0.76}, {x: 0.40, y: 0.68}, {x: 0.44, y: 0.48}, {x: 0.45, y: 0.36},
+      {x: 0.46, y: 0.58}, {x: 0.46, y: 0.46}, {x: 0.46, y: 0.38}, {x: 0.45, y: 0.36},
+      {x: 0.51, y: 0.57}, {x: 0.51, y: 0.66}, {x: 0.51, y: 0.72}, {x: 0.51, y: 0.68},
+      {x: 0.56, y: 0.58}, {x: 0.56, y: 0.67}, {x: 0.56, y: 0.73}, {x: 0.56, y: 0.69},
+      {x: 0.61, y: 0.61}, {x: 0.61, y: 0.69}, {x: 0.61, y: 0.75}, {x: 0.61, y: 0.70}
+    ],
+    pinch_out: [
+      {x: 0.50, y: 0.82}, {x: 0.44, y: 0.76}, {x: 0.38, y: 0.68}, {x: 0.34, y: 0.52}, {x: 0.32, y: 0.40},
+      {x: 0.46, y: 0.58}, {x: 0.46, y: 0.46}, {x: 0.48, y: 0.34}, {x: 0.50, y: 0.22},
+      {x: 0.51, y: 0.57}, {x: 0.51, y: 0.66}, {x: 0.51, y: 0.72}, {x: 0.51, y: 0.68},
+      {x: 0.56, y: 0.58}, {x: 0.56, y: 0.67}, {x: 0.56, y: 0.73}, {x: 0.56, y: 0.69},
+      {x: 0.61, y: 0.61}, {x: 0.61, y: 0.69}, {x: 0.61, y: 0.75}, {x: 0.61, y: 0.70}
+    ],
+    touchpad: [
+      {x: 0.50, y: 0.82}, {x: 0.44, y: 0.76}, {x: 0.38, y: 0.70}, {x: 0.32, y: 0.65}, {x: 0.40, y: 0.70},
+      {x: 0.46, y: 0.58}, {x: 0.46, y: 0.46}, {x: 0.46, y: 0.34}, {x: 0.46, y: 0.22},
+      {x: 0.51, y: 0.57}, {x: 0.50, y: 0.45}, {x: 0.49, y: 0.33}, {x: 0.49, y: 0.21},
+      {x: 0.56, y: 0.58}, {x: 0.56, y: 0.67}, {x: 0.56, y: 0.73}, {x: 0.56, y: 0.69},
+      {x: 0.61, y: 0.61}, {x: 0.61, y: 0.69}, {x: 0.61, y: 0.75}, {x: 0.61, y: 0.70}
+    ],
+    touchpad_scroll: [
+      {x: 0.50, y: 0.70}, {x: 0.44, y: 0.64}, {x: 0.38, y: 0.58}, {x: 0.32, y: 0.53}, {x: 0.40, y: 0.58},
+      {x: 0.46, y: 0.46}, {x: 0.46, y: 0.34}, {x: 0.46, y: 0.22}, {x: 0.46, y: 0.10},
+      {x: 0.51, y: 0.45}, {x: 0.50, y: 0.33}, {x: 0.49, y: 0.21}, {x: 0.49, y: 0.09},
+      {x: 0.56, y: 0.46}, {x: 0.56, y: 0.55}, {x: 0.56, y: 0.61}, {x: 0.56, y: 0.57},
+      {x: 0.61, y: 0.49}, {x: 0.61, y: 0.57}, {x: 0.61, y: 0.63}, {x: 0.61, y: 0.58}
+    ],
+    thumbs_up: [
+      {x: 0.50, y: 0.80}, {x: 0.46, y: 0.70}, {x: 0.44, y: 0.55}, {x: 0.44, y: 0.40}, {x: 0.44, y: 0.25},
+      {x: 0.48, y: 0.65}, {x: 0.48, y: 0.70}, {x: 0.48, y: 0.74}, {x: 0.48, y: 0.70},
+      {x: 0.52, y: 0.64}, {x: 0.52, y: 0.70}, {x: 0.52, y: 0.74}, {x: 0.52, y: 0.70},
+      {x: 0.56, y: 0.65}, {x: 0.56, y: 0.71}, {x: 0.56, y: 0.75}, {x: 0.56, y: 0.71},
+      {x: 0.60, y: 0.66}, {x: 0.60, y: 0.72}, {x: 0.60, y: 0.76}, {x: 0.60, y: 0.72}
+    ],
+    thumbs_down: [
+      {x: 0.50, y: 0.35}, {x: 0.46, y: 0.45}, {x: 0.44, y: 0.60}, {x: 0.44, y: 0.75}, {x: 0.44, y: 0.90},
+      {x: 0.48, y: 0.45}, {x: 0.48, y: 0.40}, {x: 0.48, y: 0.36}, {x: 0.48, y: 0.40},
+      {x: 0.52, y: 0.46}, {x: 0.52, y: 0.40}, {x: 0.52, y: 0.36}, {x: 0.52, y: 0.40},
+      {x: 0.56, y: 0.45}, {x: 0.56, y: 0.39}, {x: 0.56, y: 0.35}, {x: 0.56, y: 0.39},
+      {x: 0.60, y: 0.44}, {x: 0.60, y: 0.38}, {x: 0.60, y: 0.34}, {x: 0.60, y: 0.38}
+    ],
     palm: [
       {x: 0.50, y: 0.85}, {x: 0.42, y: 0.78}, {x: 0.36, y: 0.70}, {x: 0.30, y: 0.62}, {x: 0.24, y: 0.55},
       {x: 0.44, y: 0.58}, {x: 0.43, y: 0.45}, {x: 0.42, y: 0.33}, {x: 0.41, y: 0.22},
       {x: 0.50, y: 0.56}, {x: 0.50, y: 0.42}, {x: 0.50, y: 0.30}, {x: 0.50, y: 0.18},
       {x: 0.56, y: 0.58}, {x: 0.57, y: 0.45}, {x: 0.58, y: 0.33}, {x: 0.59, y: 0.22},
       {x: 0.62, y: 0.61}, {x: 0.64, y: 0.50}, {x: 0.66, y: 0.40}, {x: 0.68, y: 0.30}
-    ],
-    peace: [
-      {x: 0.50, y: 0.82}, {x: 0.44, y: 0.76}, {x: 0.38, y: 0.70}, {x: 0.32, y: 0.65}, {x: 0.40, y: 0.70},
-      {x: 0.46, y: 0.58}, {x: 0.44, y: 0.46}, {x: 0.42, y: 0.34}, {x: 0.40, y: 0.22},
-      {x: 0.51, y: 0.57}, {x: 0.53, y: 0.45}, {x: 0.55, y: 0.33}, {x: 0.57, y: 0.21},
-      {x: 0.56, y: 0.58}, {x: 0.56, y: 0.67}, {x: 0.56, y: 0.73}, {x: 0.56, y: 0.69},
-      {x: 0.61, y: 0.61}, {x: 0.61, y: 0.69}, {x: 0.61, y: 0.75}, {x: 0.61, y: 0.70}
     ],
     fist: [
       {x: 0.50, y: 0.80}, {x: 0.44, y: 0.75}, {x: 0.40, y: 0.70}, {x: 0.38, y: 0.66}, {x: 0.45, y: 0.64},
@@ -579,6 +653,7 @@ function initCanvasSimulator() {
 
   let currentJoints = JSON.parse(JSON.stringify(baseKeypoints.point));
   let targetJoints = JSON.parse(JSON.stringify(baseKeypoints.point));
+  let currentPosture = "point";
   let mouseOffsetX = 0;
   let mouseOffsetY = 0;
 
@@ -586,8 +661,8 @@ function initCanvasSimulator() {
     const rect = canvas.getBoundingClientRect();
     const nx = (e.clientX - rect.left) / rect.width - 0.5;
     const ny = (e.clientY - rect.top) / rect.height - 0.5;
-    mouseOffsetX = nx * 0.15;
-    mouseOffsetY = ny * 0.15;
+    mouseOffsetX = nx * 0.15 * touchpadSensitivity;
+    mouseOffsetY = ny * 0.15 * touchpadSensitivity;
   });
 
   canvas.addEventListener("mouseleave", () => {
@@ -599,28 +674,36 @@ function initCanvasSimulator() {
     btn.addEventListener("click", () => {
       simButtons.forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      const posture = btn.dataset.posture;
-      targetJoints = JSON.parse(JSON.stringify(baseKeypoints[posture] || baseKeypoints.point));
+      currentPosture = btn.dataset.posture;
+      targetJoints = JSON.parse(JSON.stringify(baseKeypoints[currentPosture] || baseKeypoints.point));
 
       const labels = {
-        point: { name: "INDEX_POINT", action: "POINTER_MOVE", conf: 92 },
+        point: { name: "INDEX_POINT", action: "POINTER_MOVE", conf: 94 },
+        air_tap: { name: "AIR_TAP", action: "UI CLICK", conf: 96 },
         pinch: { name: "PINCH", action: "TAP / CLICK", conf: 96 },
+        pinch_in: { name: "PINCH_IN", action: "CONTINUOUS ZOOM OUT", conf: 92 },
+        pinch_out: { name: "PINCH_OUT", action: "CONTINUOUS ZOOM IN", conf: 92 },
+        touchpad: { name: "TWO_FINGER_TOUCHPAD", action: "TOUCHPAD CURSOR", conf: 95 },
+        touchpad_scroll: { name: "TWO_FINGER_SCROLL", action: "TOUCHPAD SCROLL", conf: 91 },
+        thumbs_up: { name: "THUMBS_UP", action: "CONFIRM / OK", conf: 95 },
+        thumbs_down: { name: "THUMBS_DOWN", action: "REJECT / CANCEL", conf: 95 },
         palm: { name: "OPEN_PALM", action: "PAUSE_GESTURES", conf: 95 },
-        peace: { name: "TWO_FINGERS", action: "MEDIA_PLAY_PAUSE", conf: 88 },
-        fist: { name: "FIST", action: "EMERGENCY_STOP", conf: 94 },
+        fist: { name: "FIST", action: "EMERGENCY_STOP", conf: 96 },
         swipe_up: { name: "SWIPE_UP", action: "SCROLL_UP", conf: 89 }
       };
 
-      const info = labels[posture] || labels.point;
+      const info = labels[currentPosture] || labels.point;
       gestureHud.textContent = `GESTURE: ${info.name} -> ${info.action}`;
       confHud.textContent = `CONFIDENCE: ${info.conf}%`;
 
-      const timeStr = new Date().toLocaleTimeString();
-      const row = document.createElement("div");
-      row.className = "log-row";
-      row.innerHTML = `<span>[${timeStr}]</span> Dispatched: <strong>${info.action}</strong> (Debounce: OK)`;
-      logEntries.prepend(row);
-      if (logEntries.children.length > 8) logEntries.removeChild(logEntries.lastChild);
+      if (gestureControlEnabled) {
+        const timeStr = new Date().toLocaleTimeString();
+        const row = document.createElement("div");
+        row.className = "log-row";
+        row.innerHTML = `<span>[${timeStr}]</span> Dispatched: <strong>${info.action}</strong> (Debounce: OK)`;
+        logEntries.prepend(row);
+        if (logEntries.children.length > 8) logEntries.removeChild(logEntries.lastChild);
+      }
     });
   });
 
@@ -641,7 +724,7 @@ function initCanvasSimulator() {
       currentJoints[i].y += (targetJoints[i].y + mouseOffsetY - currentJoints[i].y) * 0.15;
     }
 
-    ctx.strokeStyle = "rgba(70, 240, 210, 0.85)";
+    ctx.strokeStyle = "rgba(50, 191, 219, 0.85)";
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
 
@@ -659,17 +742,33 @@ function initCanvasSimulator() {
       const cy = j.y * canvas.height;
 
       if (idx === 8) {
-        ctx.fillStyle = "#46f0d2";
+        ctx.fillStyle = "#32bfdb";
         ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.stroke();
       } else if (idx === 4) {
-        ctx.fillStyle = "#fbe2b4";
+        ctx.fillStyle = "#fdc323";
+        ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+      } else if (idx === 12) {
+        ctx.fillStyle = "#539ba9";
         ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
       } else {
         ctx.fillStyle = "#ffffff";
         ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
       }
     });
+
+    // Virtual Cursor Indicator on Canvas
+    if (virtualCursorEnabled && gestureControlEnabled) {
+      const idx = (currentPosture === "touchpad" || currentPosture === "touchpad_scroll") ? 12 : 8;
+      const cursorX = currentJoints[idx].x * canvas.width;
+      const cursorY = currentJoints[idx].y * canvas.height;
+
+      ctx.strokeStyle = "#fdc323";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cursorX, cursorY, 14, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "rgba(253, 195, 35, 0.25)";
+      ctx.beginPath(); ctx.arc(cursorX, cursorY, 8, 0, Math.PI * 2); ctx.fill();
+    }
 
     requestAnimationFrame(render);
   }

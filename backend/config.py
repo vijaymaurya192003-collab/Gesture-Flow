@@ -69,6 +69,7 @@ class BackendSettings(BaseModel):
             "http://127.0.0.1:8000",
             "https://gestureflow.vercel.app",
             "https://gesture-flow.vercel.app",
+            "https://gesture-flow-dun.vercel.app",
             "*"
         ]
 

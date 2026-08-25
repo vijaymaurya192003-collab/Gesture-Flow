@@ -37,6 +37,16 @@ class AndroidActionExecutor:
                 sx, sy = nx * self.screen_w, ny * self.screen_h
                 return AndroidAccessibilityBridge.dispatch_tap(sx, sy)
 
+            elif action == SafeActionType.SECONDARY_TAP and pointer_coords:
+                # Long press for secondary/context action on Android
+                nx, ny = pointer_coords
+                sx, sy = nx * self.screen_w, ny * self.screen_h
+                return AndroidAccessibilityBridge.dispatch_scroll(
+                    start_x=sx, start_y=sy,
+                    end_x=sx, end_y=sy,
+                    duration_ms=600  # 600ms hold = long press
+                )
+
             elif action == SafeActionType.SCROLL_UP:
                 cx = self.screen_w / 2.0
                 return AndroidAccessibilityBridge.dispatch_scroll(
@@ -53,7 +63,7 @@ class AndroidActionExecutor:
                     duration_ms=250
                 )
 
-            elif action == SafeActionType.BACK:
+            elif action == SafeActionType.BACK or action == SafeActionType.REJECT:
                 return AndroidAccessibilityBridge.perform_global_action(
                     AndroidAccessibilityBridge.GLOBAL_ACTION_BACK
                 )
@@ -68,14 +78,21 @@ class AndroidActionExecutor:
                     AndroidAccessibilityBridge.GLOBAL_ACTION_RECENTS
                 )
 
+            elif action == SafeActionType.CONFIRM:
+                # Tap center if no pointer, else tap at pointer
+                if pointer_coords:
+                    nx, ny = pointer_coords
+                    return AndroidAccessibilityBridge.dispatch_tap(nx * self.screen_w, ny * self.screen_h)
+                return True
+
             elif action == SafeActionType.VOLUME_UP:
                 return JNIBridge.adjust_volume(+1)
 
             elif action == SafeActionType.VOLUME_DOWN:
                 return JNIBridge.adjust_volume(-1)
 
-            elif action == SafeActionType.POINTER_MOVE:
-                # Pointer coordinates are updated for UI overlay
+            elif action in (SafeActionType.POINTER_MOVE, SafeActionType.ZOOM_IN, SafeActionType.ZOOM_OUT):
+                # Pointer / Zoom telemetry handled by UI layer
                 return True
 
             return False
@@ -83,4 +100,3 @@ class AndroidActionExecutor:
         except Exception as e:
             print(f"[AndroidActionExecutor] Action execution error: {e}")
             return False
-

@@ -18,11 +18,28 @@ class ConfidenceEngine:
         if gesture == GestureType.NONE or features is None:
             return 0.0
 
-        if gesture == GestureType.PINCH:
-            # Distance margin below pinch threshold
+        if gesture in (GestureType.PINCH, GestureType.PINCH_IN, GestureType.PINCH_OUT):
+            # Distance margin below or around pinch threshold
             ratio = features.pinch_distance_norm / max(0.01, pinch_threshold)
-            conf = 1.0 - (ratio * 0.5)
-            return float(np.clip(conf, 0.50, 0.98))
+            conf = 1.0 - min(0.5, ratio * 0.4)
+            if gesture in (GestureType.PINCH_IN, GestureType.PINCH_OUT) and abs(features.pinch_delta) > 0.01:
+                conf += 0.1
+            return float(np.clip(conf, 0.55, 0.98))
+
+        elif gesture == GestureType.AIR_TAP:
+            # High confidence based on index z-velocity pulse
+            speed = abs(features.index_z_velocity)
+            conf = 0.75 + min(0.20, speed * 4.0)
+            return float(np.clip(conf, 0.65, 0.96))
+
+        elif gesture in (GestureType.TWO_FINGER_TOUCHPAD, GestureType.TWO_FINGER_SCROLL, GestureType.TWO_FINGER_TAP):
+            # Proximity between index and middle fingertip
+            sep_margin = max(0.0, 0.55 - features.two_finger_separation_norm)
+            conf = 0.75 + (sep_margin * 0.3)
+            return float(np.clip(conf, 0.65, 0.95))
+
+        elif gesture == GestureType.THUMBS_UP or gesture == GestureType.THUMBS_DOWN:
+            return 0.92
 
         elif gesture == GestureType.INDEX_POINT:
             # High confidence if index is extended and other 3 fingers are clearly curled
@@ -37,7 +54,7 @@ class ConfidenceEngine:
             return float(np.clip(conf, 0.60, 0.99))
 
         elif gesture == GestureType.TWO_FINGERS:
-            # Index and Middle extended, Ring and Pinky curled
+            # Index and Middle extended with wider separation (Peace / V-sign)
             if features.index_extended and features.middle_extended and not features.ring_extended and not features.pinky_extended:
                 return 0.90
             return 0.70
@@ -54,4 +71,3 @@ class ConfidenceEngine:
             return float(np.clip(conf, 0.65, 0.95))
 
         return 0.70
-

@@ -25,7 +25,7 @@ class ActionRegistry:
         SafeActionType.POINTER_MOVE.value: ActionMetadata(
             name="Move Pointer",
             category="Interaction",
-            description="Moves the on-screen pointer/cursor based on index fingertip coordinates",
+            description="Moves the on-screen pointer/cursor based on hand/touchpad coordinates",
             is_continuous=True,
             requires_accessibility=True
         ),
@@ -33,6 +33,12 @@ class ActionRegistry:
             name="Tap / Click",
             category="Interaction",
             description="Dispatches a click/tap at the current pointer position",
+            requires_accessibility=True
+        ),
+        SafeActionType.SECONDARY_TAP.value: ActionMetadata(
+            name="Secondary / Context Tap",
+            category="Interaction",
+            description="Dispatches a secondary / right click at current pointer position",
             requires_accessibility=True
         ),
         SafeActionType.SCROLL_UP.value: ActionMetadata(
@@ -45,6 +51,20 @@ class ActionRegistry:
             name="Scroll Down",
             category="Navigation",
             description="Scrolls page or list view downward",
+            requires_accessibility=True
+        ),
+        SafeActionType.ZOOM_IN.value: ActionMetadata(
+            name="Zoom In",
+            category="Navigation",
+            description="Proportionally zooms into the view (Pinch Out)",
+            is_continuous=True,
+            requires_accessibility=True
+        ),
+        SafeActionType.ZOOM_OUT.value: ActionMetadata(
+            name="Zoom Out",
+            category="Navigation",
+            description="Proportionally zooms out of the view (Pinch In)",
+            is_continuous=True,
             requires_accessibility=True
         ),
         SafeActionType.BACK.value: ActionMetadata(
@@ -64,6 +84,18 @@ class ActionRegistry:
             category="Navigation",
             description="Opens system Recent Apps / App Switcher overview",
             requires_accessibility=True
+        ),
+        SafeActionType.CONFIRM.value: ActionMetadata(
+            name="Confirm Action",
+            category="Interaction",
+            description="Confirms the current prompt / dialog (Thumbs Up / Enter)",
+            requires_accessibility=False
+        ),
+        SafeActionType.REJECT.value: ActionMetadata(
+            name="Reject / Cancel",
+            category="Interaction",
+            description="Cancels / dismisses the current prompt (Thumbs Down / Esc)",
+            requires_accessibility=False
         ),
         SafeActionType.VOLUME_UP.value: ActionMetadata(
             name="Volume Up",
@@ -111,4 +143,3 @@ class ActionRegistry:
     def list_all_actions(cls) -> List[str]:
         """Return list of all registered safe action names."""
         return list(cls._REGISTRY.keys())
-

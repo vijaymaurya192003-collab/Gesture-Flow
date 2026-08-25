@@ -1,6 +1,6 @@
 """
 Gesture State Machine and Debounce Engine
-Enforces lifecycle state transitions, debounce windows, and hold-time confirmations.
+Enforces lifecycle state transitions, priority states, debounce windows, and hold-time confirmations.
 """
 import time
 from typing import Optional, Dict
@@ -19,7 +19,7 @@ class GestureStateMachine:
     def __init__(
         self,
         default_debounce_ms: int = 400,
-        pinch_hold_ms: int = 80
+        pinch_hold_ms: int = 60
     ):
         self.default_debounce_ms = default_debounce_ms
         self.pinch_hold_ms = pinch_hold_ms
@@ -29,17 +29,26 @@ class GestureStateMachine:
         self.last_action_timestamp: float = 0.0
         self.gesture_start_timestamp: float = 0.0
         self.last_triggered_gesture: GestureType = GestureType.NONE
+        self.is_two_finger_scrolling: bool = False
 
         # Custom per-gesture cooldown overrides (in milliseconds)
         self.cooldown_overrides: Dict[str, int] = {
-            GestureType.INDEX_POINT.value: 15,   # Ultra-responsive continuous pointer updates
-            GestureType.PINCH.value: 400,        # Tap debounce
-            GestureType.SWIPE_UP.value: 450,
-            GestureType.SWIPE_DOWN.value: 450,
-            GestureType.SWIPE_LEFT.value: 550,
-            GestureType.SWIPE_RIGHT.value: 550,
+            GestureType.INDEX_POINT.value: 15,          # Ultra-responsive continuous pointer
+            GestureType.TWO_FINGER_TOUCHPAD.value: 15,  # Continuous touchpad cursor
+            GestureType.TWO_FINGER_SCROLL.value: 40,    # Continuous touchpad scroll
+            GestureType.PINCH_IN.value: 40,             # Continuous zoom out
+            GestureType.PINCH_OUT.value: 40,            # Continuous zoom in
+            GestureType.AIR_TAP.value: 280,             # Air tap click
+            GestureType.PINCH.value: 350,               # Tap debounce
+            GestureType.TWO_FINGER_TAP.value: 400,      # Secondary tap
+            GestureType.SWIPE_UP.value: 400,
+            GestureType.SWIPE_DOWN.value: 400,
+            GestureType.SWIPE_LEFT.value: 500,
+            GestureType.SWIPE_RIGHT.value: 500,
             GestureType.OPEN_PALM.value: 700,
             GestureType.TWO_FINGERS.value: 500,
+            GestureType.THUMBS_UP.value: 600,
+            GestureType.THUMBS_DOWN.value: 600,
             GestureType.FIST.value: 800
         }
 
@@ -65,8 +74,7 @@ class GestureStateMachine:
 
         # If no hand detected, transition to IDLE
         if not hand_detected:
-            self.current_state = GestureStateEnum.IDLE
-            self.active_gesture = GestureType.NONE
+            self.reset()
             return GestureResult(
                 gesture=GestureType.NONE.value,
                 confidence=0.0,
@@ -89,10 +97,50 @@ class GestureStateMachine:
         cooldown_ms = self.cooldown_overrides.get(detected_gesture.value, self.default_debounce_ms)
         time_since_last_action_ms = now_ms - (self.last_action_timestamp * 1000.0)
 
-        # 1. CONTINUOUS GESTURE: INDEX_POINT (Pointer movement)
+        # =========================================================================
+        # 1. CONTINUOUS TOUCHPAD & POINTER MODES
+        # =========================================================================
+        if detected_gesture == GestureType.TWO_FINGER_TOUCHPAD:
+            self.current_state = GestureStateEnum.ACTION_TRIGGERED
+            self.last_action_timestamp = now
+            self.is_two_finger_scrolling = False
+            effective_action = mapped_action if mapped_action != "NONE" else SafeActionType.POINTER_MOVE.value
+            return GestureResult(
+                gesture=detected_gesture.value,
+                confidence=confidence,
+                action=effective_action,
+                state=GestureStateEnum.ACTION_TRIGGERED,
+                pointer_coords=features.two_finger_center if features else None,
+                metadata={
+                    "continuous": True,
+                    "touchpad": True,
+                    "delta": features.two_finger_delta if features else (0.0, 0.0)
+                }
+            )
+
+        if detected_gesture == GestureType.TWO_FINGER_SCROLL:
+            self.current_state = GestureStateEnum.ACTION_TRIGGERED
+            self.last_action_timestamp = now
+            self.is_two_finger_scrolling = True
+            dy = features.two_finger_delta[1] if features else 0.0
+            scroll_action = SafeActionType.SCROLL_UP.value if dy < 0 else SafeActionType.SCROLL_DOWN.value
+            return GestureResult(
+                gesture=detected_gesture.value,
+                confidence=confidence,
+                action=scroll_action,
+                state=GestureStateEnum.ACTION_TRIGGERED,
+                pointer_coords=features.two_finger_center if features else None,
+                metadata={
+                    "continuous": True,
+                    "scroll_delta": dy,
+                    "touchpad_scroll": True
+                }
+            )
+
         if detected_gesture == GestureType.INDEX_POINT:
             self.current_state = GestureStateEnum.ACTION_TRIGGERED
             self.last_action_timestamp = now
+            self.is_two_finger_scrolling = False
             effective_action = mapped_action if mapped_action != "NONE" else SafeActionType.POINTER_MOVE.value
             return GestureResult(
                 gesture=detected_gesture.value,
@@ -103,7 +151,28 @@ class GestureStateMachine:
                 metadata={"continuous": True}
             )
 
-        # 2. DISCRETE GESTURES: Check Cooldown / Debounce
+        # =========================================================================
+        # 2. CONTINUOUS PROPORTIONAL ZOOM (PINCH_IN / PINCH_OUT)
+        # =========================================================================
+        if detected_gesture in (GestureType.PINCH_IN, GestureType.PINCH_OUT):
+            self.current_state = GestureStateEnum.ACTION_TRIGGERED
+            self.last_action_timestamp = now
+            action = SafeActionType.ZOOM_IN.value if detected_gesture == GestureType.PINCH_OUT else SafeActionType.ZOOM_OUT.value
+            return GestureResult(
+                gesture=detected_gesture.value,
+                confidence=confidence,
+                action=action,
+                state=GestureStateEnum.ACTION_TRIGGERED,
+                pointer_coords=features.pointer_pos if features else None,
+                metadata={
+                    "continuous": True,
+                    "pinch_delta": features.pinch_delta if features else 0.0
+                }
+            )
+
+        # =========================================================================
+        # 3. DISCRETE GESTURES: Check Cooldown / Debounce
+        # =========================================================================
         if time_since_last_action_ms < cooldown_ms:
             self.current_state = GestureStateEnum.COOLDOWN
             return GestureResult(
@@ -114,7 +183,7 @@ class GestureStateMachine:
                 pointer_coords=features.pointer_pos if features else None
             )
 
-        # 3. Hold-time requirement for PINCH (prevent accidental brief touch)
+        # Hold-time requirement for PINCH TAP
         if detected_gesture == GestureType.PINCH:
             if self.active_gesture != GestureType.PINCH:
                 self.active_gesture = GestureType.PINCH
@@ -127,7 +196,6 @@ class GestureStateMachine:
                     pointer_coords=features.pointer_pos if features else None
                 )
 
-            # Check if held long enough
             held_duration_ms = (now - self.gesture_start_timestamp) * 1000.0
             if held_duration_ms < self.pinch_hold_ms:
                 return GestureResult(
@@ -138,11 +206,23 @@ class GestureStateMachine:
                     pointer_coords=features.pointer_pos if features else None
                 )
 
-        # 4. Trigger Action Transition
+        # Avoid triggering two-finger tap while scrolling
+        if detected_gesture == GestureType.TWO_FINGER_TAP and self.is_two_finger_scrolling:
+            return GestureResult(
+                gesture=detected_gesture.value,
+                confidence=confidence,
+                action="NONE",
+                state=GestureStateEnum.TRACKING
+            )
+
+        # =========================================================================
+        # 4. Trigger Discrete Action Transition
+        # =========================================================================
         self.current_state = GestureStateEnum.ACTION_TRIGGERED
         self.active_gesture = detected_gesture
         self.last_action_timestamp = now
         self.last_triggered_gesture = detected_gesture
+        self.is_two_finger_scrolling = False
 
         return GestureResult(
             gesture=detected_gesture.value,
@@ -158,3 +238,4 @@ class GestureStateMachine:
         self.active_gesture = GestureType.NONE
         self.last_action_timestamp = 0.0
         self.gesture_start_timestamp = 0.0
+        self.is_two_finger_scrolling = False

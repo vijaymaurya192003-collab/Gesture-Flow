@@ -564,23 +564,65 @@
             </div>
 
             <div class="simulator-controls">
+              <!-- Touchpad & Gesture Control Toolbar -->
+              <div class="sim-toolbar glass-panel" style="padding:12px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;font-weight:700;cursor:pointer;">
+                  <input type="checkbox" id="toggleGestureControl" checked> Gesture Control: <span id="labelGestureCtrl" class="text-accent">ON</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;font-weight:700;cursor:pointer;">
+                  <input type="checkbox" id="toggleVirtualCursor" checked> Virtual Cursor: <span id="labelVirtualCursor" class="text-accent">ON</span>
+                </label>
+                <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;font-weight:700;">
+                  <span>Sensitivity:</span>
+                  <select id="selectTouchpadSens" class="form-control" style="padding:4px 8px;font-size:0.75rem;width:auto;">
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM" selected>Medium</option>
+                    <option value="HIGH">High</option>
+                  </select>
+                </div>
+              </div>
+
               <h4>Simulate Hand Posture</h4>
               <div class="button-posture-grid">
                 <button class="btn-gesture-sim active" data-posture="point">
                   <i data-lucide="navigation"></i>
                   <span>Index Point</span>
                 </button>
+                <button class="btn-gesture-sim" data-posture="air_tap">
+                  <i data-lucide="crosshair"></i>
+                  <span>Air Tap</span>
+                </button>
                 <button class="btn-gesture-sim" data-posture="pinch">
                   <i data-lucide="mouse-pointer-click"></i>
                   <span>Pinch / Click</span>
                 </button>
+                <button class="btn-gesture-sim" data-posture="pinch_in">
+                  <i data-lucide="zoom-out"></i>
+                  <span>Pinch In (Zoom -)</span>
+                </button>
+                <button class="btn-gesture-sim" data-posture="pinch_out">
+                  <i data-lucide="zoom-in"></i>
+                  <span>Pinch Out (Zoom +)</span>
+                </button>
+                <button class="btn-gesture-sim" data-posture="touchpad">
+                  <i data-lucide="move"></i>
+                  <span>Two-Finger Cursor</span>
+                </button>
+                <button class="btn-gesture-sim" data-posture="touchpad_scroll">
+                  <i data-lucide="chevrons-up-down"></i>
+                  <span>Two-Finger Scroll</span>
+                </button>
+                <button class="btn-gesture-sim" data-posture="thumbs_up">
+                  <i data-lucide="thumbs-up"></i>
+                  <span>Thumbs Up</span>
+                </button>
+                <button class="btn-gesture-sim" data-posture="thumbs_down">
+                  <i data-lucide="thumbs-down"></i>
+                  <span>Thumbs Down</span>
+                </button>
                 <button class="btn-gesture-sim" data-posture="palm">
                   <i data-lucide="hand"></i>
                   <span>Open Palm</span>
-                </button>
-                <button class="btn-gesture-sim" data-posture="peace">
-                  <i data-lucide="music"></i>
-                  <span>Two Fingers</span>
                 </button>
                 <button class="btn-gesture-sim" data-posture="fist">
                   <i data-lucide="shield-alert"></i>
