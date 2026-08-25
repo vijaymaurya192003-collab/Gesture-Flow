@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: gestureflow-backend
+    env: python
+    buildCommand: pip install -r requirements-backend.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.7
+      - key: ENVIRONMENT
+        value: production
+      - key: MONGODB_DATABASE
+        value: gesture_flow
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://gestureflow.vercel.app
+      - key: CORS_ORIGINS
+        value: https://gestureflow.vercel.app,https://gesture-flow.vercel.app,http://localhost:3000
+
