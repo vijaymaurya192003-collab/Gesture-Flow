@@ -47,7 +47,7 @@ def start_backend_server(host: str = "127.0.0.1", port: int = 8000):
 def run_all():
     """Launches Backend, Web Dashboard, and Desktop Camera App concurrently."""
     print("=" * 68)
-    print("      🖐️  GESTURE FLOW — UNIFIED ALL-IN-ONE SYSTEM LAUNCHER         ")
+    print("      [+] GESTURE FLOW - UNIFIED ALL-IN-ONE SYSTEM LAUNCHER         ")
     print("=" * 68)
     print("  [1/3] FastAPI Backend     : http://localhost:8000 (Swagger: /docs)")
     print("  [2/3] Web Management UI   : http://localhost:3000")
