@@ -39,7 +39,7 @@ class AppConfig(BaseModel):
     db_path: Path = Field(default_factory=lambda: Path(os.path.expanduser("~/.gestureflow/local_cache.db")))
 
     # Cloud Sync & Backend
-    api_base_url: str = "https://gestureflow-backend.onrender.com/api/v1"
+    api_base_url: str = os.getenv("API_BASE_URL", "https://gesture-flow-mno2.onrender.com/api/v1")
     sync_interval_seconds: int = 60
     offline_mode: bool = False
 
