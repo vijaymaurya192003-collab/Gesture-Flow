@@ -4,49 +4,49 @@
    ========================================================================== */
 
 :root {
-  /* Core Theme Palette (Mint & Midnight Obsidian) */
-  --bg-space: #131321;
-  --bg-surface: #171829;
-  --bg-card: rgba(27, 28, 46, 0.85);
-  --bg-card-hover: rgba(35, 37, 60, 0.95);
-  --bg-glass: rgba(23, 24, 41, 0.7);
-  --bg-input: rgba(19, 19, 33, 0.95);
+  /* Core Theme Palette (Light App Theme) */
+  --bg-space: #f4f7f6; /* Light background */
+  --bg-surface: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --bg-card-hover: rgba(255, 255, 255, 1);
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --bg-input: rgba(240, 244, 248, 0.95);
 
   /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-glass: rgba(70, 240, 210, 0.15);
-  --border-glow: rgba(70, 240, 210, 0.4);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-glass: rgba(50, 191, 219, 0.2);
+  --border-glow: rgba(50, 191, 219, 0.5);
 
   /* Typography Colors */
-  --text-pure: #ffffff;
-  --text-primary: #ffffff;
-  --text-secondary: #9fa2b4;
-  --text-muted: #6e7187;
-  --text-dim: #4d5066;
+  --text-pure: #000000;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --text-dim: #9ca3af;
 
   /* Theme Accents from Palette */
-  --accent-mint: #46f0d2;
-  --accent-peach: #fbe2b4;
-  --accent-dark: #131321;
-  --accent-card-dark: #1b1c2e;
-  --accent-card-light: #22243a;
+  --accent-mint: #32BFDB;
+  --accent-peach: #FDC323;
+  --accent-dark: #00785D;
+  --accent-card-dark: #f9fafb;
+  --accent-card-light: #ffffff;
   
   /* Legacy alias mappings for components */
-  --accent-indigo: #46f0d2;
-  --accent-purple: #fbe2b4;
-  --accent-cyan: #46f0d2;
-  --accent-emerald: #46f0d2;
-  --accent-amber: #fbe2b4;
+  --accent-indigo: #00785D; /* Dark Green */
+  --accent-purple: #539BA9; /* Teal */
+  --accent-cyan: #32BFDB; /* Light Blue */
+  --accent-emerald: #00785D; /* Dark Green */
+  --accent-amber: #FDC323; /* Yellow */
   --accent-rose: #f43f5e;
 
   /* Gradients */
-  --gradient-primary: linear-gradient(135deg, #46f0d2 0%, #20c9a6 100%);
-  --gradient-mint-peach: linear-gradient(135deg, #46f0d2 0%, #fbe2b4 100%);
-  --gradient-peach: linear-gradient(135deg, #fbe2b4 0%, #e8c88e 100%);
-  --gradient-cyan: linear-gradient(135deg, #46f0d2 0%, #38bdf8 100%);
-  --gradient-emerald: linear-gradient(135deg, #46f0d2 0%, #10b981 100%);
-  --gradient-amber: linear-gradient(135deg, #fbe2b4 0%, #f59e0b 100%);
-  --gradient-card: linear-gradient(180deg, rgba(34, 36, 58, 0.8) 0%, rgba(27, 28, 46, 0.8) 100%);
+  --gradient-primary: linear-gradient(135deg, #00785D 0%, #32BFDB 100%);
+  --gradient-mint-peach: linear-gradient(135deg, #32BFDB 0%, #FDC323 100%);
+  --gradient-peach: linear-gradient(135deg, #FDC323 0%, #fcd34d 100%);
+  --gradient-cyan: linear-gradient(135deg, #32BFDB 0%, #539BA9 100%);
+  --gradient-emerald: linear-gradient(135deg, #00785D 0%, #10b981 100%);
+  --gradient-amber: linear-gradient(135deg, #FDC323 0%, #f59e0b 100%);
+  --gradient-card: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(249, 250, 251, 0.9) 100%);
 
   /* Typography */
   --font-display: 'Outfit', -apple-system, sans-serif;
@@ -64,11 +64,11 @@
   --spring-snappy: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* Shadows & Glows */
-  --shadow-card: 0 16px 36px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border-subtle);
-  --shadow-glow-indigo: 0 0 30px rgba(70, 240, 210, 0.25);
-  --shadow-glow-cyan: 0 0 30px rgba(70, 240, 210, 0.25);
-  --shadow-glow-emerald: 0 0 30px rgba(70, 240, 210, 0.25);
-  --shadow-glow-peach: 0 0 30px rgba(251, 226, 180, 0.25);
+  --shadow-card: 0 16px 36px -10px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--border-subtle);
+  --shadow-glow-indigo: 0 0 30px rgba(0, 120, 93, 0.25);
+  --shadow-glow-cyan: 0 0 30px rgba(50, 191, 219, 0.25);
+  --shadow-glow-emerald: 0 0 30px rgba(0, 120, 93, 0.25);
+  --shadow-glow-peach: 0 0 30px rgba(253, 195, 35, 0.25);
 }
 
 /* Base Reset */

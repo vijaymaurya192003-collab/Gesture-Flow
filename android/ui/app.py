@@ -1,28 +1,27 @@
 """
-Main Kivy / KivyMD Application
-Provides the mobile Android touchless interface with camera viewfinder HUD, settings, and calibration.
+Main Kivy Application for Gesture Flow
+Provides the mobile Android touchless interface with multi-screen navigation:
+- Dashboard (Live Camera Viewfinder & HUD)
+- Mappings (Safe Action Binding Editor)
+- Calibration (3-Step Biometric Wizard)
+- Settings (Tuning, Accessibility Launcher & Cloud Sync)
 """
 import os
 import sys
 from typing import Optional
 
-# Safe check for Kivy availability
 try:
     import kivy
     from kivy.app import App
     from kivy.clock import Clock
-    from kivy.uix.screenmanager import ScreenManager, Screen
+    from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
     from kivy.uix.boxlayout import BoxLayout
-    from kivy.uix.image import Image
-    from kivy.uix.label import Label
     from kivy.uix.button import Button
-    from kivy.uix.togglebutton import ToggleButton
-    from kivy.core.window import Window
     KIVY_AVAILABLE = True
 except ImportError:
     KIVY_AVAILABLE = False
     App = object
-    Screen = object
+    ScreenManager = object
 
 from android.camera.opencv_camera import OpenCVCamera
 from android.camera.kivy_texture_bridge import KivyTextureBridge
@@ -35,41 +34,28 @@ from android.actions.action_dispatcher import ActionDispatcher
 from android.sync.local_storage import LocalStorageManager
 from android.sync.sync_client import CloudSyncClient
 from android.config.constants import GestureType, SafeActionType
-
-
-class DashboardScreen(Screen):
-    """Main camera viewfinder and real-time gesture HUD screen."""
-    pass
-
-
-class MappingsScreen(Screen):
-    """Gesture-to-Action customization screen."""
-    pass
-
-
-class CalibrationScreen(Screen):
-    """3-step hand geometry calibration wizard."""
-    pass
-
-
-class SettingsScreen(Screen):
-    """Settings screen."""
-    pass
+from android.ui.screens.dashboard_screen import DashboardScreen
+from android.ui.screens.mappings_screen import MappingsScreen
+from android.ui.screens.calibration_screen import CalibrationScreen
+from android.ui.screens.settings_screen import SettingsScreen
 
 
 class GestureFlowApp(App if KIVY_AVAILABLE else object):
     """
-    Kivy Mobile Application for Gesture Flow.
+    Unified Gesture Flow Kivy Application.
+    Maintains a single shared pipeline and application state across all screens.
     """
 
     def __init__(self, **kwargs):
         if KIVY_AVAILABLE:
             super().__init__(**kwargs)
         self.title = "Gesture Flow"
+
+        # Shared Data & Sync Layer
         self.storage = LocalStorageManager()
         self.sync_client = CloudSyncClient(self.storage)
 
-        # Vision & Gesture Pipeline components
+        # Shared Vision & Gesture Pipeline
         self.camera = OpenCVCamera()
         self.detector = HandDetector()
         self.smoother = LandmarkSmoother()
@@ -77,56 +63,72 @@ class GestureFlowApp(App if KIVY_AVAILABLE else object):
         self.state_machine = GestureStateMachine()
         self.dispatcher = ActionDispatcher()
 
-        # Wire custom mappings
+        # Wire Initial Saved State
         self.dispatcher.set_mappings(self.storage.load_mappings())
         calib = self.storage.load_calibration()
-        self.classifier.set_pinch_threshold(calib.pinch_threshold)
+        if calib:
+            self.classifier.set_pinch_threshold(calib.pinch_threshold)
 
-        self._image_widget = None
-        self._fps_label = None
-        self._gesture_label = None
-        self._status_label = None
+        self.screen_manager = None
+        self.dashboard_screen = None
+        self.mappings_screen = None
+        self.calibration_screen = None
+        self.settings_screen = None
 
     def build(self):
-        """Construct the Kivy UI layout."""
+        """Construct the multi-screen Kivy UI layout with bottom navigation."""
         if not KIVY_AVAILABLE:
             print("[GestureFlowApp] Kivy is not installed in the environment.")
             return None
 
-        # Build Main View Layout
-        root = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        root = BoxLayout(orientation="vertical")
 
-        # Top Header Bar
-        header = BoxLayout(size_hint_y=0.08, spacing=10)
-        self._fps_label = Label(text="FPS: 0", size_hint_x=0.25, font_size="16sp", bold=True)
-        self._gesture_label = Label(text="Gesture: NONE", size_hint_x=0.5, font_size="16sp", bold=True, color=(0.2, 0.8, 1, 1))
-        self._status_label = Label(text="Local CV Active", size_hint_x=0.25, font_size="14sp", color=(0.5, 1, 0.5, 1))
-        header.add_widget(self._fps_label)
-        header.add_widget(self._gesture_label)
-        header.add_widget(self._status_label)
-        root.add_widget(header)
+        # 1. Screen Manager Container
+        self.screen_manager = ScreenManager(transition=FadeTransition(duration=0.15))
+        
+        self.dashboard_screen = DashboardScreen(self)
+        self.mappings_screen = MappingsScreen(self)
+        self.calibration_screen = CalibrationScreen(self)
+        self.settings_screen = SettingsScreen(self)
 
-        # Camera Viewfinder View
-        self._image_widget = Image(size_hint_y=0.78, allow_stretch=True, keep_ratio=True)
-        root.add_widget(self._image_widget)
+        self.screen_manager.add_widget(self.dashboard_screen)
+        self.screen_manager.add_widget(self.mappings_screen)
+        self.screen_manager.add_widget(self.calibration_screen)
+        self.screen_manager.add_widget(self.settings_screen)
 
-        # Bottom Control Panel
-        controls = BoxLayout(size_hint_y=0.14, spacing=12)
-        btn_toggle = ToggleButton(text="Tracking: ON", state='down', size_hint_x=0.33)
-        btn_toggle.bind(on_press=self._toggle_tracking)
+        root.add_widget(self.screen_manager)
 
-        btn_pause = Button(text="Pause / Resume", size_hint_x=0.33)
-        btn_pause.bind(on_press=lambda x: self.dispatcher.dispatch(self.state_machine.process_frame(True, GestureType.OPEN_PALM, 0.9, None, SafeActionType.PAUSE_GESTURES.value)))
+        # 2. Bottom Tab Navigation Bar
+        nav_bar = BoxLayout(size_hint_y=0.09, spacing=4, padding=4)
+        
+        # Using #FDC323 (Yellow) for the main tab
+        btn_dash = Button(text="HUD / Camera", background_color=(0.99, 0.76, 0.14, 1.0), font_size="12sp", bold=True)
+        btn_dash.bind(on_press=lambda _: self._switch_screen("dashboard"))
 
-        btn_emergency = Button(text="EMERGENCY STOP", background_color=(0.9, 0.2, 0.2, 1), size_hint_x=0.34, bold=True)
-        btn_emergency.bind(on_press=self._handle_emergency_stop)
+        # Using #00785D (Dark Green) for Mappings
+        btn_map = Button(text="Mappings", background_color=(0.0, 0.47, 0.36, 1.0), font_size="12sp", color=(1, 1, 1, 1))
+        btn_map.bind(on_press=lambda _: self._switch_screen("mappings"))
 
-        controls.add_widget(btn_toggle)
-        controls.add_widget(btn_pause)
-        controls.add_widget(btn_emergency)
-        root.add_widget(controls)
+        # Using #32BFDB (Light Blue) for Calibration
+        btn_calib = Button(text="Calibration", background_color=(0.20, 0.75, 0.86, 1.0), font_size="12sp", color=(0, 0, 0, 1))
+        btn_calib.bind(on_press=lambda _: self._switch_screen("calibration"))
+
+        # Using #539BA9 (Teal) for Settings
+        btn_sett = Button(text="Settings", background_color=(0.33, 0.61, 0.66, 1.0), font_size="12sp", color=(1, 1, 1, 1))
+        btn_sett.bind(on_press=lambda _: self._switch_screen("settings"))
+
+        nav_bar.add_widget(btn_dash)
+        nav_bar.add_widget(btn_map)
+        nav_bar.add_widget(btn_calib)
+        nav_bar.add_widget(btn_sett)
+
+        root.add_widget(nav_bar)
 
         return root
+
+    def _switch_screen(self, screen_name: str):
+        if self.screen_manager:
+            self.screen_manager.current = screen_name
 
     def on_start(self):
         """Lifecycle start hook."""
@@ -178,7 +180,7 @@ class GestureFlowApp(App if KIVY_AVAILABLE else object):
         # 5. Dispatch Action
         self.dispatcher.dispatch(result)
 
-        # 6. Render Overlays
+        # 6. Render Overlays & Update HUD
         fps = self.camera.get_fps()
         annotated_frame = OverlayRenderer.draw_hand_overlay(
             frame=frame,
@@ -188,35 +190,17 @@ class GestureFlowApp(App if KIVY_AVAILABLE else object):
             show_hud=True
         )
 
-        # 7. Update Kivy Texture
-        if self._image_widget:
+        # 7. Update Dashboard Widgets if currently active
+        if self.dashboard_screen and self.dashboard_screen.image_widget:
             tex = KivyTextureBridge.frame_to_kivy_texture(annotated_frame)
             if tex:
-                self._image_widget.texture = tex
+                self.dashboard_screen.image_widget.texture = tex
 
-        if self._fps_label:
-            self._fps_label.text = f"FPS: {fps:.1f}"
-        if self._gesture_label:
-            if result.gesture != "NONE":
-                self._gesture_label.text = f"{result.gesture} -> {result.action}"
-            else:
-                self._gesture_label.text = "Searching..."
-
-    def _toggle_tracking(self, instance):
-        if instance.state == 'down':
-            instance.text = "Tracking: ON"
-            self.camera.start()
-        else:
-            instance.text = "Tracking: OFF"
-            self.camera.stop()
-
-    def _handle_emergency_stop(self, instance):
-        if self.dispatcher.emergency_stopped:
-            self.dispatcher.reset_emergency_stop()
-            instance.text = "EMERGENCY STOP"
-            instance.background_color = (0.9, 0.2, 0.2, 1)
-        else:
-            self.dispatcher.emergency_stopped = True
-            instance.text = "UNLOCK ACTIONS"
-            instance.background_color = (0.2, 0.7, 0.2, 1)
-
+            if self.dashboard_screen.fps_label:
+                self.dashboard_screen.fps_label.text = f"FPS: {fps:.1f}"
+            if self.dashboard_screen.gesture_label:
+                self.dashboard_screen.gesture_label.text = f"Gesture: {result.gesture}"
+            if self.dashboard_screen.confidence_label:
+                self.dashboard_screen.confidence_label.text = f"Conf: {int(result.confidence * 100)}%"
+            if self.dashboard_screen.action_label:
+                self.dashboard_screen.action_label.text = f"Action: {result.action}"

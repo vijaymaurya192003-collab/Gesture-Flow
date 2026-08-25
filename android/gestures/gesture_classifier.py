@@ -26,7 +26,7 @@ class GestureClassifier:
 
     def set_pinch_threshold(self, threshold: float) -> None:
         """Update calibration pinch sensitivity threshold."""
-        self.pinch_threshold = max(0.1, min(1.0, threshold))
+        self.pinch_threshold = max(0.01, min(1.0, threshold))
 
     def classify(self, landmarks: List[LandmarkPoint]) -> Tuple[GestureType, float, Optional[HandFeatures]]:
         """

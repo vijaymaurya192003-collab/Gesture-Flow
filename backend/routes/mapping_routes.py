@@ -1,10 +1,10 @@
 """
 Gesture Mapping Routes
 CRUD endpoints for managing user gesture-to-action mappings.
-Supports /gestures and /mappings paths.
+Provides 100% interoperability between /gestures and /mappings endpoints.
 """
-from typing import List
-from fastapi import APIRouter, HTTPException, status, Depends
+from typing import List, Optional
+from fastapi import APIRouter, HTTPException, status, Depends, Path
 from backend.models.mapping_models import MappingCreate, MappingResponse
 from backend.security import get_current_user
 from backend.database import db_manager
@@ -63,14 +63,28 @@ async def get_user_mappings(current_user: dict = Depends(get_current_user)):
 
 @router.post("/mappings", response_model=MappingResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/gestures", response_model=MappingResponse, status_code=status.HTTP_201_CREATED)
-@router.put("/mappings/{gesture}", response_model=MappingResponse)
-@router.put("/gestures/{gesture}", response_model=MappingResponse)
-async def upsert_mapping(
+async def create_mapping(
     payload: MappingCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Create or update a gesture mapping for the user."""
-    user_id = current_user["user_id"]
+    """Create or replace a gesture mapping for the user."""
+    return await _save_mapping_document(payload.gesture, payload, current_user["user_id"])
+
+
+@router.put("/mappings/{gesture}", response_model=MappingResponse)
+@router.put("/gestures/{gesture}", response_model=MappingResponse)
+async def update_mapping_by_path(
+    gesture: str,
+    payload: MappingCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a specific gesture mapping by path parameter."""
+    return await _save_mapping_document(gesture, payload, current_user["user_id"])
+
+
+async def _save_mapping_document(gesture_key: str, payload: MappingCreate, user_id: str) -> MappingResponse:
+    """Internal helper to persist gesture mapping."""
+    target_gesture = payload.gesture or gesture_key
 
     # Security check: verify action is in whitelist
     if not ActionRegistry.is_safe(payload.action):
@@ -81,7 +95,7 @@ async def upsert_mapping(
 
     doc_data = {
         "user_id": user_id,
-        "gesture": payload.gesture,
+        "gesture": target_gesture,
         "action": payload.action,
         "sensitivity": payload.sensitivity,
         "confidence_threshold": payload.confidence_threshold,
@@ -93,16 +107,15 @@ async def upsert_mapping(
     mappings_coll = db_manager.get_mappings_collection()
     if mappings_coll is not None:
         await mappings_coll.update_one(
-            {"user_id": user_id, "gesture": payload.gesture},
+            {"user_id": user_id, "gesture": target_gesture},
             {"$set": doc_data},
             upsert=True
         )
     else:
         if user_id not in db_manager._mock_mappings:
             db_manager._mock_mappings[user_id] = []
-        # Replace existing or append
         db_manager._mock_mappings[user_id] = [
-            m for m in db_manager._mock_mappings[user_id] if m["gesture"] != payload.gesture
+            m for m in db_manager._mock_mappings[user_id] if m["gesture"] != target_gesture
         ]
         db_manager._mock_mappings[user_id].append(doc_data)
 
