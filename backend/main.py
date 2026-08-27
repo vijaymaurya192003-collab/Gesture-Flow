@@ -2,6 +2,14 @@
 Gesture Flow FastAPI Application
 Main backend API entry point for cloud synchronization with MongoDB Atlas on Render.
 """
+import sys
+import os
+
+# Guarantee repository root is in python path
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

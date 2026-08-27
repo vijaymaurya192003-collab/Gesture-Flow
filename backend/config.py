@@ -35,6 +35,13 @@ def _load_env_file() -> None:
 _load_env_file()
 
 
+def _get_int_env(key: str, default: int) -> int:
+    val = os.getenv(key)
+    if val and val.strip().isdigit():
+        return int(val.strip())
+    return default
+
+
 class BackendSettings(BaseModel):
     """Configuration settings for FastAPI server."""
     app_name: str = "Gesture Flow Cloud API"
@@ -42,13 +49,13 @@ class BackendSettings(BaseModel):
     debug: bool = os.getenv("DEBUG", "False").lower() in ("true", "1")
 
     # Server Binding
-    port: int = int(os.getenv("PORT", 8000))
+    port: int = _get_int_env("PORT", 8000)
     host: str = os.getenv("HOST", "0.0.0.0")
 
     # JWT Authentication
     jwt_secret: str = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY") or "gestureflow_default_dev_secret_key_change_in_prod"
     jwt_algorithm: str = os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM") or "HS256"
-    access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))
+    access_token_expire_minutes: int = _get_int_env("ACCESS_TOKEN_EXPIRE_MINUTES", 1440)
 
     # MongoDB Atlas Connection
     mongodb_uri: str = os.getenv("MONGODB_URI", "")

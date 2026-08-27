@@ -7,7 +7,7 @@ services:
     plan: free
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.7
+        value: 3.11.9
       - key: ENVIRONMENT
         value: production
       - key: MONGODB_DATABASE

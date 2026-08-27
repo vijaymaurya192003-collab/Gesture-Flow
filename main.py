@@ -81,17 +81,31 @@ def run_all():
         pass
 
     # 3. Start Desktop Computer Vision & Camera Tracking in the main thread
-    from android.main import run_desktop_interactive_mode
-    run_desktop_interactive_mode(debug_latency=False, camera_idx=0)
+    try:
+        from android.main import run_desktop_interactive_mode
+        run_desktop_interactive_mode(debug_latency=False, camera_idx=0)
+    except (ImportError, Exception) as e:
+        print(f"[Launcher] Desktop CV app skipped or running in headless mode: {e}")
+        print("[Launcher] FastAPI backend (http://127.0.0.1:8000) and Web UI (http://127.0.0.1:3000) remain active.")
+        print("[Launcher] Press Ctrl+C to exit.")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n[Launcher] Shutting down...")
 
 
 if __name__ == "__main__":
+    is_cloud_env = bool(os.getenv("RENDER") or os.getenv("PORT") or os.getenv("ENVIRONMENT") == "production")
+
     if len(sys.argv) > 1:
         cmd = sys.argv[1].lower()
-        if cmd == "backend":
+        if cmd in ("backend", "server", "api"):
             from backend.config import settings
-            print(f"[Launcher] Starting FastAPI backend on {settings.host}:{settings.port}...")
-            uvicorn.run("backend.main:app", host=settings.host, port=settings.port, reload=True)
+            port = int(os.getenv("PORT") or settings.port)
+            host = "0.0.0.0" if is_cloud_env else settings.host
+            print(f"[Launcher] Starting FastAPI backend on {host}:{port}...")
+            uvicorn.run("backend.main:app", host=host, port=port, reload=not is_cloud_env)
         elif cmd in ("frontend", "web"):
             print("[Launcher] Starting Frontend Web Server on http://localhost:3000...")
             webbrowser.open("http://localhost:3000")
@@ -104,5 +118,13 @@ if __name__ == "__main__":
         else:
             run_all()
     else:
-        # Default: Run all 3 simultaneously!
-        run_all()
+        # Default behavior: If deployed on Render/Cloud, run backend API on $PORT
+        if is_cloud_env:
+            from backend.config import settings
+            port = int(os.getenv("PORT") or settings.port)
+            print(f"[Launcher] Cloud/Render environment detected. Starting FastAPI backend on 0.0.0.0:{port}...")
+            uvicorn.run("backend.main:app", host="0.0.0.0", port=port, reload=False)
+        else:
+            # Local Desktop: Run all 3 simultaneously!
+            run_all()
+
