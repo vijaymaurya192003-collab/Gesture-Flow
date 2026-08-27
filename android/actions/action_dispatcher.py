@@ -5,9 +5,7 @@ Enforces mapping rules, whitelist verification, emergency stops, pause states, a
 from typing import Dict, Optional, Tuple, Callable
 from android.config.constants import GestureType, SafeActionType, DEFAULT_GESTURE_MAPPINGS
 from android.actions.action_registry import ActionRegistry
-from android.actions.desktop_executor import DesktopActionExecutor
-from android.actions.android_executor import AndroidActionExecutor
-from android.android.jni_bridge import JNIBridge
+from android.actions.action_registry import ActionRegistry
 from android.models.gesture_models import GestureResult, GestureMappingItem
 
 
@@ -26,11 +24,26 @@ class ActionDispatcher:
         self.gestures_paused = False
 
         # Platform executors
-        self._desktop_executor = DesktopActionExecutor()
-        self._android_executor = AndroidActionExecutor()
+        self._desktop_executor = None
+        self._android_executor = None
+        self._init_executors()
 
         # UI listener callbacks
         self.on_action_dispatched: Optional[Callable[[str, str], None]] = None
+
+    def _init_executors(self) -> None:
+        """Initialize desktop and Android action executors with safety fallbacks."""
+        try:
+            from android.actions.desktop_executor import DesktopActionExecutor
+            self._desktop_executor = DesktopActionExecutor()
+        except Exception as e:
+            self._desktop_executor = None
+
+        try:
+            from android.actions.android_executor import AndroidActionExecutor
+            self._android_executor = AndroidActionExecutor()
+        except Exception as e:
+            self._android_executor = None
 
     def _load_default_mappings(self) -> None:
         """Load default initial mappings."""
@@ -102,13 +115,19 @@ class ActionDispatcher:
 
         # 4. Delegate to Platform Executor
         success = False
-        if JNIBridge.is_android():
+        try:
+            from android.android.jni_bridge import JNIBridge
+            is_android = JNIBridge.is_android()
+        except Exception:
+            is_android = False
+
+        if is_android and self._android_executor:
             success = self._android_executor.execute(
                 action=action_enum,
                 pointer_coords=result.pointer_coords,
                 metadata=result.metadata
             )
-        else:
+        elif self._desktop_executor:
             success = self._desktop_executor.execute(
                 action=action_enum,
                 pointer_coords=result.pointer_coords,
