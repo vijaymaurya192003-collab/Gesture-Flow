@@ -1,6 +1,7 @@
 """
 Local Storage Manager (SQLite / JSON)
 Provides offline-first persistence for gesture mappings, settings, calibration profiles, and sync queues.
+Includes robust error-tracking, retry counters, and acknowledgement-based sync queue management.
 """
 import sqlite3
 import json
@@ -69,16 +70,39 @@ class LocalStorageManager:
                 )
             """)
 
-            # Offline sync queue
+            # Offline sync queue with retry counter and last error tracking
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sync_queue (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     endpoint TEXT NOT NULL,
                     method TEXT NOT NULL,
                     payload_json TEXT NOT NULL,
+                    retry_count INTEGER DEFAULT 0,
+                    last_error TEXT,
+                    status TEXT DEFAULT 'pending',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+
+            # Migration: Ensure columns exist if table was previously created
+            cursor.execute("PRAGMA table_info(sync_queue)")
+            cols = [c[1] for c in cursor.fetchall()]
+            if "retry_count" not in cols:
+                try:
+                    cursor.execute("ALTER TABLE sync_queue ADD COLUMN retry_count INTEGER DEFAULT 0")
+                except Exception:
+                    pass
+            if "last_error" not in cols:
+                try:
+                    cursor.execute("ALTER TABLE sync_queue ADD COLUMN last_error TEXT")
+                except Exception:
+                    pass
+            if "status" not in cols:
+                try:
+                    cursor.execute("ALTER TABLE sync_queue ADD COLUMN status TEXT DEFAULT 'pending'")
+                except Exception:
+                    pass
+
             conn.commit()
 
         # Seed initial mappings if empty
@@ -226,8 +250,8 @@ class LocalStorageManager:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO sync_queue (endpoint, method, payload_json)
-                VALUES (?, ?, ?)
+                INSERT INTO sync_queue (endpoint, method, payload_json, retry_count, status)
+                VALUES (?, ?, ?, 0, 'pending')
             """, (endpoint, method, json.dumps(payload)))
             conn.commit()
 
@@ -236,20 +260,34 @@ class LocalStorageManager:
         items = []
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, endpoint, method, payload_json FROM sync_queue ORDER BY id ASC")
+            cursor.execute("SELECT id, endpoint, method, payload_json, retry_count, last_error FROM sync_queue WHERE status = 'pending' ORDER BY id ASC")
             for row in cursor.fetchall():
                 items.append({
                     "id": row[0],
                     "endpoint": row[1],
                     "method": row[2],
-                    "payload": json.loads(row[3])
+                    "payload": json.loads(row[3]),
+                    "retry_count": row[4] or 0,
+                    "last_error": row[5]
                 })
         return items
 
+    def record_sync_failure(self, item_id: int, error_msg: str, max_retries: int = 5) -> None:
+        """Increment retry counter and record failure error message."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE sync_queue 
+                SET retry_count = retry_count + 1,
+                    last_error = ?,
+                    status = CASE WHEN retry_count + 1 >= ? THEN 'dead_letter' ELSE 'pending' END
+                WHERE id = ?
+            """, (error_msg, max_retries, item_id))
+            conn.commit()
+
     def delete_sync_item(self, item_id: int) -> None:
-        """Remove processed item from sync queue."""
+        """Remove successfully acknowledged item from sync queue."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM sync_queue WHERE id = ?", (item_id,))
             conn.commit()
-

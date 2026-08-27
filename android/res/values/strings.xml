@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gesture Flow</string>
+    <string name="accessibility_service_label">Gesture Flow Touchless Control</string>
+    <string name="accessibility_service_description">Enables real-time touchless gesture control (simulated taps, scrolling, and global back/home navigation) using on-device computer vision. No personal data or keystrokes are recorded.</string>
+</resources>
+

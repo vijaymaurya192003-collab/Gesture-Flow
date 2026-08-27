@@ -1,6 +1,8 @@
 """
 MediaPipe Hand Landmark Detection
 Performs local hand landmark tracking on OpenCV video frames with lightweight fast inference.
+Supports desktop MediaPipe Hands solution with graceful fallback reporting when running in
+environments without compiled MediaPipe wheels (such as stock Python-for-Android).
 """
 import time
 from typing import Optional, List, Tuple
@@ -29,10 +31,11 @@ class HandDetector:
 
         self._mp_hands = None
         self._hands = None
-        self._init_mediapipe()
+        self._backend_name = "None"
+        self._init_detector()
 
-    def _init_mediapipe(self) -> None:
-        """Initialize MediaPipe Hands solution with Lite model."""
+    def _init_detector(self) -> None:
+        """Initialize MediaPipe Hands solution if available."""
         try:
             import mediapipe as mp
             self._mp_hands = mp.solutions.hands
@@ -43,9 +46,20 @@ class HandDetector:
                 min_detection_confidence=self.min_detection_confidence,
                 min_tracking_confidence=self.min_tracking_confidence
             )
+            self._backend_name = "MediaPipe Desktop (Python Wheel)"
         except Exception as e:
-            print(f"[HandDetector] Warning: MediaPipe initialization exception: {e}")
+            # MediaPipe is not compiled for Python-for-Android arm64.
+            # In native Android production, MediaPipe Tasks Vision AAR is integrated via Java.
             self._hands = None
+            self._backend_name = "Unavailable / Native AAR Required on Android"
+
+    def is_available(self) -> bool:
+        """Check if active landmark tracking backend is initialized."""
+        return self._hands is not None
+
+    def get_backend_name(self) -> str:
+        """Return the active vision backend name."""
+        return self._backend_name
 
     def detect_hands(self, frame_bgr: np.ndarray) -> HandFrameData:
         """
@@ -76,7 +90,7 @@ class HandDetector:
         except Exception as e:
             return HandFrameData(hand_detected=False, timestamp=now)
 
-        if not results.multi_hand_landmarks:
+        if not results or not results.multi_hand_landmarks:
             return HandFrameData(hand_detected=False, timestamp=now)
 
         # Extract primary tracked hand

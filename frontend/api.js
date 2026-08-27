@@ -33,7 +33,7 @@ class ApiClient {
     }
 
     // Production Render Backend URL
-    return "https://gestureflow-backend.onrender.com";
+    return "https://gesture-flow-mno2.onrender.com";
   }
 
   getToken() {

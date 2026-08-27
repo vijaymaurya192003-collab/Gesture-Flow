@@ -1,7 +1,7 @@
 # REST API Specification
 ## Gesture Flow Backend API (FastAPI)
 
-Base Path: `/api/v1`
+Base Paths Supported: `/`, `/api`, `/api/v1`
 
 ---
 
@@ -49,15 +49,16 @@ Base Path: `/api/v1`
 
 ---
 
-## 2. Gesture Mapping Endpoints
+## 2. Gesture Mapping Endpoints (Parity on `/mappings` & `/gestures`)
 
 ### 2.1 Get Mappings
-- **GET** `/mappings`
+- **GET** `/mappings` or **GET** `/gestures`
 - **Headers**: `Authorization: Bearer <access_token>`
 - **Response** `200 OK`: Array of active mapping objects.
 
-### 2.2 Upsert Mapping
-- **POST** `/mappings` or **PUT** `/mappings/{gesture}`
+### 2.2 Create or Upsert Mapping
+- **POST** `/mappings` or **POST** `/gestures`
+- **PUT** `/mappings/{gesture}` or **PUT** `/gestures/{gesture}`
 - **Headers**: `Authorization: Bearer <access_token>`
 - **Request Body**:
   ```json
@@ -71,6 +72,12 @@ Base Path: `/api/v1`
     "description": "Custom Tap Action"
   }
   ```
+- **Response** `200 OK` / `201 Created`
+
+### 2.3 Delete / Reset Mapping
+- **DELETE** `/mappings/{gesture}` or **DELETE** `/gestures/{gesture}`
+- **Headers**: `Authorization: Bearer <access_token>`
+- **Response** `204 No Content`
 
 ---
 
@@ -85,7 +92,9 @@ Base Path: `/api/v1`
     "camera_resolution": "640x480",
     "target_fps": 30,
     "pointer_sensitivity": 1.2,
-    "vibration_feedback": true
+    "scroll_sensitivity": 1.0,
+    "vibration_feedback": true,
+    "show_landmark_overlay": true
   }
   ```
 
@@ -94,8 +103,9 @@ Base Path: `/api/v1`
 - **Payload**:
   ```json
   {
-    "pinch_threshold": 0.35,
+    "pinch_threshold": 0.052,
     "hand_size_baseline": 0.35,
+    "neutral_jitter_std": 0.0028,
     "min_confidence_floor": 0.65
   }
   ```
@@ -104,7 +114,6 @@ Base Path: `/api/v1`
 
 ## 4. Telemetry & Stats
 
-- **POST** `/stats`: Record anonymous usage counters (durations, gesture counts, average FPS).
-- **GET** `/stats/summary`: Aggregate usage statistics.
+- **POST** `/stats`: Record session metrics (durations, gesture counts, FPS).
+- **GET** `/stats/summary`: Aggregate telemetry.
 - **GET** `/health`: System health and database connectivity status.
-
