@@ -11,28 +11,30 @@ class ApiClient {
   }
 
   resolveBaseUrl() {
-    // 1. Check window/build environment variables (Vite / custom window config)
+    // 1. Check explicit environment/window configuration (Vite, webpack, runtime injection)
     if (typeof window !== "undefined") {
       if (window.API_BASE_URL) return window.API_BASE_URL.replace(/\/$/, "");
       if (window.VITE_API_BASE_URL) return window.VITE_API_BASE_URL.replace(/\/$/, "");
       if (window.VITE_API_URL) return window.VITE_API_URL.replace(/\/$/, "");
+      if (window.__ENV__?.API_BASE_URL) return window.__ENV__.API_BASE_URL.replace(/\/$/, "");
       if (window.__ENV__?.VITE_API_URL) return window.__ENV__.VITE_API_URL.replace(/\/$/, "");
     }
 
-    // 2. Check local storage override if user configured one
+    // 2. Check localStorage override if manually configured
     if (typeof localStorage !== "undefined") {
       const custom = localStorage.getItem("API_BASE_URL") || localStorage.getItem("VITE_API_URL");
       if (custom) return custom.replace(/\/$/, "");
     }
 
-    // 3. Fallback based on browser hostname
-    if (typeof window !== "undefined") {
-      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-        return `${window.location.protocol}//${window.location.hostname}:8000`;
+    // 3. Localhost development fallback (ONLY when accessing from localhost / 127.0.0.1)
+    if (typeof window !== "undefined" && window.location) {
+      const host = window.location.hostname;
+      if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
+        return `${window.location.protocol}//${host}:8000`;
       }
     }
 
-    // Production Render Backend URL
+    // 4. Default Production Render Backend URL
     return "https://gestureflow-backend.onrender.com";
   }
 

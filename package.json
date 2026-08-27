@@ -1,0 +1,9 @@
+{
+  "name": "gesture-flow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gesture Flow Touchless HCI Web & Mobile Platform",
+  "scripts": {
+    "build": "cd frontend && node build.js"
+  }
+}

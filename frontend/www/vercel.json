@@ -2,6 +2,10 @@
   "version": 2,
   "name": "gesture-flow",
   "cleanUrls": true,
+  "outputDirectory": "www",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

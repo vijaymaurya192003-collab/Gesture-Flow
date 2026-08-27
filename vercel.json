@@ -2,7 +2,8 @@
   "version": 2,
   "name": "gesture-flow",
   "cleanUrls": true,
-  "outputDirectory": "www",
+  "buildCommand": "cd frontend && node build.js",
+  "outputDirectory": "frontend/www",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
@@ -17,4 +18,3 @@
     }
   ]
 }
-
