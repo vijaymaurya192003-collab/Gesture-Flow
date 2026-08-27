@@ -23,3 +23,4 @@ filesToCopy.forEach(file => {
 });
 
 console.log('Build complete! Static assets ready in frontend/www');
+

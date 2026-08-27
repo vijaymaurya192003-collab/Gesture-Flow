@@ -48,3 +48,4 @@ jobs:
           name: gesture-flow-capacitor-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
+
