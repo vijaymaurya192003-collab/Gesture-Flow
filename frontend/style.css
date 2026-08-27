@@ -1391,18 +1391,25 @@ a:hover {
 /* Modal & Toast */
 .modal-backdrop {
   position: fixed;
-  inset: 0;
-  background: rgba(10, 35, 28, 0.45);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(10, 35, 28, 0.55);
   backdrop-filter: blur(8px);
-  z-index: 1000;
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9999;
   display: none;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .modal-backdrop.open {
-  display: flex;
+  display: flex !important;
 }
 
 .modal-box {
@@ -1411,9 +1418,13 @@ a:hover {
   border-radius: var(--radius-xl);
   max-width: 440px;
   width: 100%;
-  padding: 32px;
-  box-shadow: 0 24px 48px -12px rgba(0, 50, 40, 0.2);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 32px 28px;
+  box-shadow: 0 24px 48px -12px rgba(0, 50, 40, 0.25);
   position: relative;
+  margin: auto;
+  box-sizing: border-box;
 }
 
 .modal-header {
@@ -1459,10 +1470,18 @@ a:hover {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .form-group-glass {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-bottom: 16px;
+  width: 100%;
 }
 
 .form-group-glass label {
@@ -1470,18 +1489,18 @@ a:hover {
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 6px;
 }
 
 .form-control {
   width: 100%;
-  padding: 10px 14px;
+  padding: 12px 14px;
   background: #FFFFFF;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   color: var(--text-pure);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  box-sizing: border-box;
 }
 
 .form-control:focus {
@@ -1490,11 +1509,19 @@ a:hover {
   box-shadow: 0 0 0 3px rgba(0, 120, 93, 0.12);
 }
 
+.auth-error-text {
+  color: #e11d48;
+  font-size: 0.84rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  min-height: 18px;
+}
+
 .toast-container {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 2000;
+  z-index: 10000;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1511,4 +1538,18 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .modal-backdrop {
+    padding: 12px;
+  }
+  .modal-box {
+    padding: 24px 18px;
+    border-radius: 20px;
+    max-width: 100%;
+  }
+  .form-control {
+    font-size: 16px;
+  }
 }

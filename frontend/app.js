@@ -465,7 +465,7 @@ function initAuthModal() {
     isRegisterMode = true;
     tabRegister.classList.add("active");
     tabLogin.classList.remove("active");
-    groupName.style.display = "flex";
+    groupName.style.display = "block";
     modalTitle.textContent = "Create Account";
     submitBtn.querySelector("span").textContent = "Create Account";
     errorMsg.textContent = "";
