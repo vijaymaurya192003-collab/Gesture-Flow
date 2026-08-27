@@ -26,16 +26,20 @@ class ApiClient {
       if (custom) return custom.replace(/\/$/, "");
     }
 
-    // 3. Localhost development fallback (ONLY when accessing from localhost / 127.0.0.1)
+    // 3. Localhost desktop development fallback (ONLY when accessing from browser on port 3000/5173)
     if (typeof window !== "undefined" && window.location) {
       const host = window.location.hostname;
-      if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
+      const port = window.location.port;
+      const isNativeApp = !!(window.Capacitor?.isNativePlatform?.() || window.location.protocol === "capacitor:" || window.location.protocol === "file:");
+      
+      // On local desktop dev browser (e.g. localhost:3000 or localhost:5173), route to localhost:8000
+      if (!isNativeApp && (host === "localhost" || host === "127.0.0.1") && (port === "3000" || port === "5173" || port === "8080")) {
         return `${window.location.protocol}//${host}:8000`;
       }
     }
 
-    // 4. Default Production Render Backend URL
-    return "https://gestureflow-backend.onrender.com";
+    // 4. Default Production Render Backend URL (Cloud & Mobile APK)
+    return "https://gesture-flow-mno2.onrender.com";
   }
 
   getToken() {
