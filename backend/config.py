@@ -61,27 +61,31 @@ class BackendSettings(BaseModel):
     mongodb_uri: str = os.getenv("MONGODB_URI", "")
     mongodb_database: str = os.getenv("MONGODB_DB") or os.getenv("MONGODB_DATABASE") or os.getenv("MONGODB_DB_NAME") or "gesture_flow"
 
-    # CORS Whitelist (from env or defaults)
     @property
     def cors_origins(self) -> List[str]:
         env_cors = os.getenv("CORS_ORIGINS")
+        origins = []
         if env_cors:
-            return [orig.strip() for orig in env_cors.split(",") if orig.strip()]
-        return [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:8000",
-            "http://127.0.0.1:8000",
-            "https://localhost",
-            "capacitor://localhost",
-            "http://localhost",
-            "https://gestureflow.vercel.app",
-            "https://gesture-flow.vercel.app",
-            "https://gesture-flow-dun.vercel.app",
-            "*"
-        ]
+            origins = [orig.strip() for orig in env_cors.split(",") if orig.strip() and orig.strip() != "*"]
+        else:
+            origins = [
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:8000",
+                "http://127.0.0.1:8000",
+                "https://gestureflow.vercel.app",
+                "https://gesture-flow.vercel.app",
+                "https://gesture-flow-dun.vercel.app",
+            ]
+        
+        # Always guarantee Android Capacitor and localhost WebView origins
+        for mobile_origin in ["https://localhost", "capacitor://localhost", "http://localhost"]:
+            if mobile_origin not in origins:
+                origins.append(mobile_origin)
+        
+        return origins
 
 
 settings = BackendSettings()

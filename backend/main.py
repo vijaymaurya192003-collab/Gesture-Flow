@@ -39,10 +39,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Enable CORS for Vercel Web Dashboard and local development
+# Enable CORS for Vercel Web Dashboard, Capacitor Android Mobile App, and local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=r"^(https?://.*|capacitor://.*)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
