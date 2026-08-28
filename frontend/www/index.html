@@ -558,24 +558,29 @@
           </div>
 
           <div class="simulator-layout">
-            <div class="canvas-wrapper">
+            <div class="canvas-wrapper" style="position:relative;">
               <canvas id="handSimulatorCanvas" width="640" height="420"></canvas>
+              <video id="liveWebcamFeed" playsinline autoplay muted style="display:none;"></video>
             </div>
 
             <div class="simulator-controls">
               <!-- Touchpad & Gesture Control Toolbar -->
               <div class="sim-toolbar glass-panel" style="padding:12px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;">
+                <button type="button" id="btnToggleWebcam" class="btn btn-primary btn-sm" style="font-size:0.8rem;padding:6px 14px;">
+                  <i data-lucide="video"></i>
+                  <span id="labelWebcamBtn">Start Live Camera</span>
+                </button>
                 <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;font-weight:700;cursor:pointer;">
-                  <input type="checkbox" id="toggleGestureControl" checked> Gesture Control: <span id="labelGestureCtrl" class="text-accent">ON</span>
+                  <input type="checkbox" id="toggleGestureControl" checked> Gestures: <span id="labelGestureCtrl" class="text-accent">ON</span>
                 </label>
                 <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;font-weight:700;cursor:pointer;">
-                  <input type="checkbox" id="toggleVirtualCursor" checked> Virtual Cursor: <span id="labelVirtualCursor" class="text-accent">ON</span>
+                  <input type="checkbox" id="toggleVirtualCursor" checked> Cursor: <span id="labelVirtualCursor" class="text-accent">ON</span>
                 </label>
                 <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;font-weight:700;">
-                  <span>Sensitivity:</span>
+                  <span>Sens:</span>
                   <select id="selectTouchpadSens" class="form-control" style="padding:4px 8px;font-size:0.75rem;width:auto;">
                     <option value="LOW">Low</option>
-                    <option value="MEDIUM" selected>Medium</option>
+                    <option value="MEDIUM" selected>Med</option>
                     <option value="HIGH">High</option>
                   </select>
                 </div>

@@ -707,16 +707,63 @@ function initCanvasSimulator() {
     });
   });
 
+  let webcamStream = null;
+  const btnToggleWebcam = document.getElementById("btnToggleWebcam");
+  const labelWebcamBtn = document.getElementById("labelWebcamBtn");
+  const video = document.getElementById("liveWebcamFeed");
+
+  btnToggleWebcam?.addEventListener("click", async () => {
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(t => t.stop());
+      webcamStream = null;
+      if (video) video.srcObject = null;
+      if (labelWebcamBtn) labelWebcamBtn.textContent = "Start Live Camera";
+      btnToggleWebcam.className = "btn btn-primary btn-sm";
+      showToast("Camera stopped.");
+      return;
+    }
+
+    try {
+      showToast("Requesting camera access...");
+      webcamStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      });
+      if (video) {
+        video.srcObject = webcamStream;
+        await video.play();
+      }
+      if (labelWebcamBtn) labelWebcamBtn.textContent = "Stop Camera";
+      btnToggleWebcam.className = "btn btn-secondary btn-sm";
+      showToast("Live camera active! Hand tracking overlay enabled.");
+    } catch (err) {
+      showToast(`Camera permission denied: ${err.message}`, true);
+    }
+  });
+
   function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
-    ctx.lineWidth = 1;
-    for (let x = 0; x < canvas.width; x += 40) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-    }
-    for (let y = 0; y < canvas.height; y += 40) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    if (webcamStream && video && video.readyState >= 2) {
+      // Draw live camera feed mirrored
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+
+      // Tint overlay so neon landmarks stand out clearly
+      ctx.fillStyle = "rgba(10, 35, 28, 0.4)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else {
+      ctx.strokeStyle = "rgba(0, 120, 93, 0.08)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+      }
     }
 
     for (let i = 0; i < currentJoints.length; i++) {
