@@ -10,14 +10,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Global Toast Notification Container -->
-
   <!-- Global Toast Notification Container -->
   <div id="toastNotification" class="toast-container"></div>
 
@@ -29,9 +29,7 @@
     <header class="landing-header glass-panel">
       <div class="brand">
         <div class="brand-logo-wrap">
-          <div class="brand-icon">
-            <i data-lucide="hand-metal"></i>
-          </div>
+          <img src="assets/logo.png" alt="Gesture Flow Logo" class="brand-logo-img">
           <div class="brand-pulse"></div>
         </div>
         <div class="brand-text">
@@ -301,6 +299,7 @@
     <footer class="landing-footer glass-panel">
       <div class="footer-col">
         <div class="brand">
+          <img src="assets/logo.png" alt="Gesture Flow Logo" class="footer-logo-img">
           <div class="brand-text">
             <h2>Gesture<span class="gradient-text">Flow</span></h2>
             <span class="badge">College HCI Project</span>
@@ -335,7 +334,10 @@
       </div>
 
       <form id="authForm" class="modal-body">
-        <h3 id="authModalTitle" style="margin-bottom:12px;font-size:1.15rem;">Sign In to Gesture Flow</h3>
+        <div class="modal-logo-wrap">
+          <img src="assets/logo.png" alt="Gesture Flow Logo" class="modal-logo-img">
+        </div>
+        <h3 id="authModalTitle" style="margin-bottom:12px;font-size:1.15rem;text-align:center;">Sign In to Gesture Flow</h3>
         
         <div class="form-group-glass" id="groupName" style="display:none;">
           <label>Full Name</label>
@@ -370,7 +372,7 @@
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-logo-wrap">
-          <div class="brand-icon"><i data-lucide="hand-metal"></i></div>
+          <img src="assets/logo.png" alt="Gesture Flow Logo" class="brand-logo-img">
           <div class="brand-pulse"></div>
         </div>
         <div class="brand-text">

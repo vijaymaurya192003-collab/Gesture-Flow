@@ -14,7 +14,7 @@ const androidPublicDir = path.join(__dirname, 'android', 'app', 'src', 'main', '
   }
 });
 
-const filesToCopy = ['index.html', 'style.css', 'api.js', 'app.js', 'vercel.json'];
+const filesToCopy = ['index.html', 'style.css', 'api.js', 'app.js', 'vercel.json', 'logo.png', 'favicon.png'];
 
 filesToCopy.forEach(file => {
   const src = path.join(srcDir, file);
@@ -31,5 +31,24 @@ filesToCopy.forEach(file => {
   }
 });
 
-console.log('Build complete! Static assets synchronized to www and Android native assets.');
+// Copy assets folder
+const assetsSrc = path.join(srcDir, 'assets');
+if (fs.existsSync(assetsSrc)) {
+  const wwwAssets = path.join(wwwDir, 'assets');
+  const androidAssets = path.join(androidPublicDir, 'assets');
+  [wwwAssets, androidAssets].forEach(dir => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  });
+
+  fs.readdirSync(assetsSrc).forEach(item => {
+    const s = path.join(assetsSrc, item);
+    fs.copyFileSync(s, path.join(wwwAssets, item));
+    if (fs.existsSync(androidPublicDir)) {
+      fs.copyFileSync(s, path.join(androidAssets, item));
+    }
+    console.log(`Copied assets/${item} -> www & android`);
+  });
+}
+
+console.log('Build complete! Static assets and logo files synchronized to www and Android native assets.');
 
