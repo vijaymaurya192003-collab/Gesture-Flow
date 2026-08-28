@@ -15,6 +15,10 @@
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   
+  <!-- MediaPipe Hands & Camera Utils for On-Device Vision Tracking -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -545,6 +549,77 @@
 
       <!-- TAB 2: LIVE INTERACTIVE CV SIMULATOR -->
       <div class="tab-pane" id="tab-simulator">
+        <!-- Android System Control & Native Accessibility HUD -->
+        <div class="card glass-panel android-control-panel" id="androidControlPanel">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <i data-lucide="smartphone" style="color:var(--accent-green);width:22px;height:22px;"></i>
+                <h3 style="margin:0;font-size:1.2rem;">Android System Gesture Control</h3>
+              </div>
+              <p style="margin-top:4px;font-size:0.85rem;">Bridge phone camera gestures to actual Android screen taps, directional swipes, pinch zoom & OS navigation</p>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <button type="button" id="btnOpenAccessibilitySettings" class="btn btn-secondary btn-sm" style="display:none;">
+                <i data-lucide="settings"></i>
+                <span>Enable Accessibility in Android</span>
+              </button>
+              <button type="button" id="btnStopGestureControl" class="btn btn-danger-stop btn-sm" title="Instant safety stop for all gesture-generated actions">
+                <i data-lucide="shield-alert"></i>
+                <span>STOP GESTURE CONTROL</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Status Indicator Pills -->
+          <div class="android-status-grid">
+            <div class="status-pill-box">
+              <span class="status-pill-label">Camera</span>
+              <span class="status-pill-badge" id="statusPillCamera"><span class="dot red"></span> OFF</span>
+            </div>
+            <div class="status-pill-box">
+              <span class="status-pill-label">Gestures</span>
+              <span class="status-pill-badge" id="statusPillGestures"><span class="dot green"></span> ON</span>
+            </div>
+            <div class="status-pill-box">
+              <span class="status-pill-label">Cursor</span>
+              <span class="status-pill-badge" id="statusPillCursor"><span class="dot green"></span> ON</span>
+            </div>
+            <div class="status-pill-box">
+              <span class="status-pill-label">Accessibility Service</span>
+              <span class="status-pill-badge" id="statusPillAccessibility"><span class="dot amber"></span> CHECKING...</span>
+            </div>
+            <div class="status-pill-box">
+              <span class="status-pill-label">Android Control</span>
+              <label class="switch-toggle-label">
+                <input type="checkbox" id="toggleAndroidControl">
+                <span class="status-pill-badge" id="statusPillAndroidControl"><span class="dot red"></span> DISABLED</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Real-Time Hardware & Telemetry Bar -->
+          <div class="android-telemetry-bar">
+            <div class="telemetry-col">
+              <span class="tel-label">Runtime Platform:</span>
+              <span class="tel-val" id="telPlatformMode">Web Browser (Simulator Mode)</span>
+            </div>
+            <div class="telemetry-col">
+              <span class="tel-label">Physical Screen:</span>
+              <span class="tel-val" id="telScreenDim">1080 x 2400 px</span>
+            </div>
+            <div class="telemetry-col">
+              <span class="tel-label">Native Target Cursor:</span>
+              <span class="tel-val" id="telScreenCoords">(X: 540, Y: 1200)</span>
+            </div>
+            <div class="telemetry-col">
+              <span class="tel-label">Last Dispatched Action:</span>
+              <span class="tel-val" id="telLastNativeAction">IDLE</span>
+            </div>
+          </div>
+        </div>
+
         <div class="card glass-panel">
           <div class="card-header">
             <div>

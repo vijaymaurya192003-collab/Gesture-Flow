@@ -4,4 +4,6 @@
     <string name="title_activity_main">Gesture Flow</string>
     <string name="package_name">org.gestureflow.app</string>
     <string name="custom_url_scheme">org.gestureflow.app</string>
+    <string name="accessibility_service_label">Gesture Flow Touchless Control</string>
+    <string name="accessibility_service_description">Enables real-time touchless gesture control (simulated taps, scrolling, and global back/home navigation) using on-device computer vision. No personal data or keystrokes are recorded.</string>
 </resources>
