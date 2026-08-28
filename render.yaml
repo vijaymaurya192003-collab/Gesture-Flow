@@ -19,5 +19,5 @@ services:
       - key: FRONTEND_URL
         value: https://gestureflow.vercel.app
       - key: CORS_ORIGINS
-        value: https://gestureflow.vercel.app,https://gesture-flow.vercel.app,http://localhost:3000
+        value: https://gestureflow.vercel.app,https://gesture-flow.vercel.app,https://gesture-flow-dun.vercel.app,https://localhost,capacitor://localhost,http://localhost:3000
 

@@ -20,10 +20,12 @@ class ApiClient {
       if (window.__ENV__?.VITE_API_URL) return window.__ENV__.VITE_API_URL.replace(/\/$/, "");
     }
 
-    // 2. Check localStorage override if manually configured
+    // 2. Check localStorage override if valid (filter out stale/broken test URLs)
     if (typeof localStorage !== "undefined") {
       const custom = localStorage.getItem("API_BASE_URL") || localStorage.getItem("VITE_API_URL");
-      if (custom) return custom.replace(/\/$/, "");
+      if (custom && custom.startsWith("http") && !custom.includes("gestureflow-backend.onrender.com")) {
+        return custom.replace(/\/$/, "");
+      }
     }
 
     // 3. Localhost desktop development fallback (ONLY when accessing from browser on port 3000/5173)
@@ -38,7 +40,7 @@ class ApiClient {
       }
     }
 
-    // 4. Default Production Render Backend URL (Cloud & Mobile APK)
+    // 4. Default Production Render Backend URL (Cloud Web & Android APK)
     return "https://gesture-flow-mno2.onrender.com";
   }
 
