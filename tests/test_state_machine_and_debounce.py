@@ -110,3 +110,61 @@ def test_pinch_hold_time_requirement():
     assert res2.state == GestureStateEnum.ACTION_TRIGGERED
     assert res2.action == SafeActionType.TAP.value
 
+
+def test_pinch_hold_fires_exactly_once_and_requires_release_regression():
+    """Regression test #9c: Holding pinch fires only one TAP, requiring release before firing again."""
+    sm = GestureStateMachine(pinch_hold_ms=30)
+    features = HandFeatures(pinch_distance_norm=0.15)
+
+    # 1. Start pinch
+    sm.process_frame(True, GestureType.PINCH, 0.90, features, mapped_action=SafeActionType.TAP.value)
+    time.sleep(0.04)
+
+    # 2. Hold satisfied -> fires TAP
+    res1 = sm.process_frame(True, GestureType.PINCH, 0.90, features, mapped_action=SafeActionType.TAP.value)
+    assert res1.action == SafeActionType.TAP.value
+
+    # 3. Keep holding pinch even past cooldown window (e.g. 400ms later)
+    # Simulate time jump or sleep past 350ms cooldown
+    time.sleep(0.36)
+    res_held = sm.process_frame(True, GestureType.PINCH, 0.90, features, mapped_action=SafeActionType.TAP.value)
+    # Must NOT fire another tap!
+    assert res_held.action == "NONE"
+
+    # 4. Release pinch (gesture drops out to NONE or another gesture)
+    sm.process_frame(True, GestureType.OPEN_PALM, 0.90, HandFeatures(extended_count=5), mapped_action="NONE")
+
+    # 5. Now pinch again
+    sm.process_frame(True, GestureType.PINCH, 0.90, features, mapped_action=SafeActionType.TAP.value)
+    time.sleep(0.04)
+    res2 = sm.process_frame(True, GestureType.PINCH, 0.90, features, mapped_action=SafeActionType.TAP.value)
+    assert res2.action == SafeActionType.TAP.value
+
+
+def test_disabled_mapping_disables_continuous_gestures_regression():
+    """Regression test #9d: Continuous gestures return action='NONE' when mapped_action == 'NONE'."""
+    sm = GestureStateMachine()
+    feats = HandFeatures(pointer_pos=(0.5, 0.5), two_finger_center=(0.5, 0.5), two_finger_delta=(0.0, -0.05), pinch_delta=0.03)
+
+    # 1. TWO_FINGER_TOUCHPAD with mapped_action="NONE"
+    res_pad = sm.process_frame(True, GestureType.TWO_FINGER_TOUCHPAD, 0.85, feats, mapped_action="NONE")
+    assert res_pad.action == "NONE"
+
+    # 2. TWO_FINGER_SCROLL with mapped_action="NONE"
+    res_scroll = sm.process_frame(True, GestureType.TWO_FINGER_SCROLL, 0.85, feats, mapped_action="NONE")
+    assert res_scroll.action == "NONE"
+
+    # 3. INDEX_POINT with mapped_action="NONE"
+    res_point = sm.process_frame(True, GestureType.INDEX_POINT, 0.85, feats, mapped_action="NONE")
+    assert res_point.action == "NONE"
+
+    # 4. PINCH_OUT (zoom in) with mapped_action="NONE"
+    res_pinch_out = sm.process_frame(True, GestureType.PINCH_OUT, 0.85, feats, mapped_action="NONE")
+    assert res_pinch_out.action == "NONE"
+
+    # 5. PINCH_IN (zoom out) with mapped_action="NONE"
+    feats.pinch_delta = -0.03
+    res_pinch_in = sm.process_frame(True, GestureType.PINCH_IN, 0.85, feats, mapped_action="NONE")
+    assert res_pinch_in.action == "NONE"
+
+

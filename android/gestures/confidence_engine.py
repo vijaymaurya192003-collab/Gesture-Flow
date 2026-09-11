@@ -11,7 +11,7 @@ class ConfidenceEngine:
     """Computes confidence percentages for classified gestures."""
 
     @staticmethod
-    def calculate_confidence(gesture: GestureType, features: HandFeatures, pinch_threshold: float = 0.35) -> float:
+    def calculate_confidence(gesture: GestureType, features: HandFeatures, pinch_threshold: float = 0.45) -> float:
         """
         Calculates a confidence metric between 0.0 and 1.0.
         """

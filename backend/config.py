@@ -5,7 +5,7 @@ Never hardcodes credentials or secrets.
 """
 import os
 from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 
 def _load_env_file() -> None:
@@ -45,21 +45,48 @@ def _get_int_env(key: str, default: int) -> int:
 class BackendSettings(BaseModel):
     """Configuration settings for FastAPI server."""
     app_name: str = "Gesture Flow Cloud API"
-    environment: str = os.getenv("ENVIRONMENT", "development")
-    debug: bool = os.getenv("DEBUG", "False").lower() in ("true", "1")
+    environment: str = Field(default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
+    debug: bool = Field(default_factory=lambda: os.getenv("DEBUG", "False").lower() in ("true", "1"))
 
     # Server Binding
-    port: int = _get_int_env("PORT", 8000)
-    host: str = os.getenv("HOST", "0.0.0.0")
+    port: int = Field(default_factory=lambda: _get_int_env("PORT", 8000))
+    host: str = Field(default_factory=lambda: os.getenv("HOST", "0.0.0.0"))
 
     # JWT Authentication
-    jwt_secret: str = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY") or "gestureflow_default_dev_secret_key_change_in_prod"
-    jwt_algorithm: str = os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM") or "HS256"
-    access_token_expire_minutes: int = _get_int_env("ACCESS_TOKEN_EXPIRE_MINUTES", 1440)
+    jwt_secret: str = Field(
+        default_factory=lambda: os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY") or "gestureflow_default_dev_secret_key_change_in_prod"
+    )
+    jwt_algorithm: str = Field(
+        default_factory=lambda: os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM") or "HS256"
+    )
+    access_token_expire_minutes: int = Field(
+        default_factory=lambda: _get_int_env("ACCESS_TOKEN_EXPIRE_MINUTES", 1440)
+    )
 
     # MongoDB Atlas Connection
-    mongodb_uri: str = os.getenv("MONGODB_URI", "")
-    mongodb_database: str = os.getenv("MONGODB_DB") or os.getenv("MONGODB_DATABASE") or os.getenv("MONGODB_DB_NAME") or "gesture_flow"
+    mongodb_uri: str = Field(default_factory=lambda: os.getenv("MONGODB_URI", ""))
+    mongodb_database: str = Field(
+        default_factory=lambda: os.getenv("MONGODB_DB") or os.getenv("MONGODB_DATABASE") or os.getenv("MONGODB_DB_NAME") or "gesture_flow"
+    )
+
+    @model_validator(mode="after")
+    def validate_production_environment(self):
+        if self.environment.lower() == "production":
+            raw_jwt = self.jwt_secret or os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY")
+            if not raw_jwt or raw_jwt.strip() in (
+                "gestureflow_default_dev_secret_key_change_in_prod",
+                "changeme_use_a_long_random_value",
+                ""
+            ):
+                raise RuntimeError(
+                    "Production startup failed: JWT_SECRET must be explicitly configured with a secure value in production (silent fallback is disabled)."
+                )
+            raw_mongo = (self.mongodb_uri or os.getenv("MONGODB_URI") or "").strip()
+            if not raw_mongo or "<user>" in raw_mongo or "<password>" in raw_mongo or "<cluster>" in raw_mongo:
+                raise RuntimeError(
+                    "Production startup failed: MONGODB_URI must be explicitly configured with a valid MongoDB Atlas connection string in production."
+                )
+        return self
 
     @property
     def cors_origins(self) -> List[str]:

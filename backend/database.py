@@ -13,26 +13,26 @@ from backend.config import settings
 class DatabaseManager:
     """Manages centralized connection to MongoDB Atlas."""
 
-    client: Optional[AsyncIOMotorClient] = None
-    db: Optional[AsyncIOMotorDatabase] = None
-    is_connected: bool = False
+    def __init__(self):
+        self.client: Optional[AsyncIOMotorClient] = None
+        self.db: Optional[AsyncIOMotorDatabase] = None
+        self.is_connected: bool = False
 
-    # In-memory storage fallback for offline development & mock testing
-    _mock_users: Dict[str, Dict[str, Any]] = {}
-    _mock_mappings: Dict[str, List[Dict[str, Any]]] = {}
-    _mock_settings: Dict[str, Dict[str, Any]] = {}
-    _mock_calibration: Dict[str, Dict[str, Any]] = {}
-    _mock_stats: List[Dict[str, Any]] = []
+        # In-memory storage fallback for offline development & mock testing
+        self._mock_users: Dict[str, Dict[str, Any]] = {}
+        self._mock_mappings: Dict[str, List[Dict[str, Any]]] = {}
+        self._mock_settings: Dict[str, Dict[str, Any]] = {}
+        self._mock_calibration: Dict[str, Dict[str, Any]] = {}
+        self._mock_stats: List[Dict[str, Any]] = []
 
-    @classmethod
-    def _sanitize_uri(cls, uri: str) -> str:
+    @staticmethod
+    def _sanitize_uri(uri: str) -> str:
         """Sanitizes connection string by masking user credentials for safe logging."""
         if not uri:
             return ""
         return re.sub(r"://([^:]+):([^@]+)@", r"://\1:****@", uri)
 
-    @classmethod
-    async def connect_db(cls) -> bool:
+    async def connect_db(self) -> bool:
         """
         Initialize reusable MongoDB Atlas client with Stable API and connection timeouts.
         Fails gracefully without crashing if MONGODB_URI is missing or offline.
@@ -42,19 +42,19 @@ class DatabaseManager:
 
         if not uri:
             print("[DatabaseManager] MONGODB_URI not configured. Operating in local in-memory fallback mode.")
-            cls.is_connected = False
+            self.is_connected = False
             return False
 
         # Filter out obvious placeholder mock URIs
         if "<username>" in uri or "<password>" in uri or "demo:demo" in uri:
             print("[DatabaseManager] Notice: Placeholder MONGODB_URI detected. Using local in-memory storage for demonstration.")
-            cls.is_connected = False
+            self.is_connected = False
             return False
 
-        sanitized = cls._sanitize_uri(uri)
+        sanitized = self._sanitize_uri(uri)
         try:
             print(f"[DatabaseManager] Connecting to MongoDB Atlas ({sanitized})...")
-            cls.client = AsyncIOMotorClient(
+            self.client = AsyncIOMotorClient(
                 uri,
                 server_api=ServerApi('1'),
                 serverSelectionTimeoutMS=4000,
@@ -63,76 +63,78 @@ class DatabaseManager:
                 maxPoolSize=50,
                 minPoolSize=5
             )
-            cls.db = cls.client[db_name]
+            self.db = self.client[db_name]
 
             # Perform ping to verify cluster reachability
-            await cls.ping_db()
-            cls.is_connected = True
+            await self.ping_db()
+            self.is_connected = True
             print(f"[DatabaseManager] Successfully connected to MongoDB Atlas database '{db_name}'.")
             return True
         except Exception as e:
             print(f"[DatabaseManager] Warning: MongoDB Atlas connection failed ({type(e).__name__}). Using in-memory fallback mode.")
-            cls.is_connected = False
+            self.is_connected = False
             return False
 
-    @classmethod
-    async def ping_db(cls) -> bool:
+    async def ping_db(self) -> bool:
         """Send a ping command to verify database liveliness."""
-        if cls.client is None:
+        if self.client is None:
             return False
         try:
-            res = await cls.client.admin.command('ping')
+            res = await self.client.admin.command('ping')
             return bool(res.get('ok') == 1.0)
         except Exception:
             return False
 
-    @classmethod
-    async def close_db(cls) -> None:
+    async def close_db(self) -> None:
         """Close MongoDB Atlas client connections cleanly."""
-        if cls.client is not None:
-            cls.client.close()
-            cls.client = None
-            cls.db = None
-            cls.is_connected = False
+        if self.client is not None:
+            self.client.close()
+            self.client = None
+            self.db = None
+            self.is_connected = False
             print("[DatabaseManager] MongoDB Atlas connection closed cleanly.")
+
+    def record_failure(self, exc: Exception) -> None:
+        """
+        Marks database as disconnected on connectivity/operation failure
+        and safely logs error type without leaking credentials or URIs.
+        """
+        self.is_connected = False
+        error_type = type(exc).__name__
+        print(f"[DatabaseManager] MongoDB connectivity/operation failure: {error_type}. Set is_connected = False.")
 
     # -------------------------------------------------------------------------
     # Collection Accessors (Returns None if in mock fallback mode)
     # -------------------------------------------------------------------------
 
-    @classmethod
-    def get_users_collection(cls):
+    def get_users_collection(self):
         """Users collection: auth credentials & accounts."""
-        if cls.is_connected and cls.db is not None:
-            return cls.db["users"]
+        if self.is_connected and self.db is not None:
+            return self.db["users"]
         return None
 
-    @classmethod
-    def get_mappings_collection(cls):
+    def get_mappings_collection(self):
         """Gesture mappings collection: custom gesture-to-action bindings."""
-        if cls.is_connected and cls.db is not None:
-            return cls.db["gesture_mappings"]
+        if self.is_connected and self.db is not None:
+            return self.db["gesture_mappings"]
         return None
 
-    @classmethod
-    def get_settings_collection(cls):
+    def get_settings_collection(self):
         """User settings collection: resolution, FPS, theme, sensitivity."""
-        if cls.is_connected and cls.db is not None:
-            return cls.db["user_settings"]
+        if self.is_connected and self.db is not None:
+            return self.db["user_settings"]
         return None
 
-    @classmethod
-    def get_calibration_collection(cls):
+    def get_calibration_collection(self):
         """Calibration profiles collection: biometric thresholds & deadbands."""
-        if cls.is_connected and cls.db is not None:
-            return cls.db["calibration_profiles"]
+        if self.is_connected and self.db is not None:
+            return self.db["calibration_profiles"]
         return None
 
-    @classmethod
-    def get_stats_collection(cls):
+    def get_stats_collection(self):
         """Stats collection: aggregate session telemetry."""
-        if cls.is_connected and cls.db is not None:
-            return cls.db["stats"]
+        if self.is_connected and self.db is not None:
+            return self.db["stats"]
         return None
 
 

@@ -3,7 +3,7 @@ Calibration Profile Routes
 Endpoints for user hand size and threshold calibration profiles.
 """
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from backend.models.calibration_models import CalibrationUpdate, CalibrationResponse
 from backend.security import get_current_user
 from backend.database import db_manager
@@ -18,10 +18,17 @@ async def get_calibration(current_user: dict = Depends(get_current_user)):
     calib_coll = db_manager.get_calibration_collection()
 
     if calib_coll is not None:
-        doc = await calib_coll.find_one({"user_id": user_id})
-        if doc:
-            doc.pop("_id", None)
-            return CalibrationResponse(**doc)
+        try:
+            doc = await calib_coll.find_one({"user_id": user_id})
+            if doc:
+                doc.pop("_id", None)
+                return CalibrationResponse(**doc)
+        except Exception as exc:
+            db_manager.record_failure(exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable while fetching calibration."
+            )
     elif user_id in db_manager._mock_calibration:
         return CalibrationResponse(**db_manager._mock_calibration[user_id])
 
@@ -38,10 +45,17 @@ async def update_calibration(payload: CalibrationUpdate, current_user: dict = De
 
     calib_coll = db_manager.get_calibration_collection()
     if calib_coll is not None:
-        await calib_coll.update_one({"user_id": user_id}, {"$set": update_data}, upsert=True)
-        doc = await calib_coll.find_one({"user_id": user_id})
-        doc.pop("_id", None)
-        return CalibrationResponse(**doc)
+        try:
+            await calib_coll.update_one({"user_id": user_id}, {"$set": update_data}, upsert=True)
+            doc = await calib_coll.find_one({"user_id": user_id})
+            doc.pop("_id", None)
+            return CalibrationResponse(**doc)
+        except Exception as exc:
+            db_manager.record_failure(exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable: failed to update calibration."
+            )
     else:
         existing = db_manager._mock_calibration.get(user_id, CalibrationResponse(user_id=user_id).model_dump())
         existing.update(update_data)

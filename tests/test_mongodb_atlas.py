@@ -141,3 +141,44 @@ def test_user_settings_and_calibration_isolation(client):
     assert get_calib.status_code == 200
     assert get_calib.json()["pinch_threshold"] == 0.42
 
+
+def test_mongo_dropped_connection_marks_disconnected_and_returns_503(client):
+    """Regression test #3: When Mongo drops mid-session, is_connected becomes False and route returns 503."""
+    from unittest.mock import AsyncMock, MagicMock
+    from pymongo.errors import AutoReconnect
+
+    # Login to get token
+    reg_res = client.post("/api/v1/auth/register", json={
+        "email": "mongo_drop@test.edu",
+        "name": "Drop Test",
+        "password": "Password123"
+    })
+    token = reg_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Simulate active Mongo connection dropping on update_one
+    db_manager.is_connected = True
+    mock_db = MagicMock()
+    mock_coll = MagicMock()
+    mock_coll.update_one = AsyncMock(side_effect=AutoReconnect("Connection reset by peer"))
+    mock_db.__getitem__.return_value = mock_coll
+    db_manager.db = mock_db
+
+    # Attempt a write to mappings while collection raises connectivity error
+    res = client.put("/api/v1/mappings/PINCH", json={
+        "gesture": "PINCH",
+        "action": "VOLUME_UP",
+        "cooldown_ms": 300,
+        "enabled": True
+    }, headers=headers)
+
+    # Must return 503 Service Unavailable, NOT unhandled 500 or silent 200
+    assert res.status_code == 503
+    assert "Database service unavailable" in res.json()["detail"]
+    # DatabaseManager must be marked disconnected
+    assert db_manager.is_connected is False
+
+    # Clean up
+    db_manager.db = None
+    db_manager.is_connected = False
+

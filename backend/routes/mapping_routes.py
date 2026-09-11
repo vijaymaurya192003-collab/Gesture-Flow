@@ -23,19 +23,26 @@ async def get_user_mappings(current_user: dict = Depends(get_current_user)):
 
     user_mappings = []
     if mappings_coll is not None:
-        cursor = mappings_coll.find({"user_id": user_id})
-        async for doc in cursor:
-            user_mappings.append(
-                MappingResponse(
-                    user_id=user_id,
-                    gesture=doc["gesture"],
-                    action=doc["action"],
-                    sensitivity=doc.get("sensitivity", 1.0),
-                    confidence_threshold=doc.get("confidence_threshold", 0.70),
-                    cooldown_ms=doc.get("cooldown_ms", 400),
-                    enabled=doc.get("enabled", True),
-                    description=doc.get("description", "")
+        try:
+            cursor = mappings_coll.find({"user_id": user_id})
+            async for doc in cursor:
+                user_mappings.append(
+                    MappingResponse(
+                        user_id=user_id,
+                        gesture=doc["gesture"],
+                        action=doc["action"],
+                        sensitivity=doc.get("sensitivity", 1.0),
+                        confidence_threshold=doc.get("confidence_threshold", 0.70),
+                        cooldown_ms=doc.get("cooldown_ms", 400),
+                        enabled=doc.get("enabled", True),
+                        description=doc.get("description", "")
+                    )
                 )
+        except Exception as exc:
+            db_manager.record_failure(exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable while fetching mappings."
             )
     elif user_id in db_manager._mock_mappings:
         user_mappings = [MappingResponse(**m) for m in db_manager._mock_mappings[user_id]]
@@ -68,7 +75,7 @@ async def create_mapping(
     current_user: dict = Depends(get_current_user)
 ):
     """Create or replace a gesture mapping for the user."""
-    return await _save_mapping_document(payload.gesture, payload, current_user["user_id"])
+    return await _save_mapping_document(payload.gesture, payload, current_user["user_id"], is_path_param=False)
 
 
 @router.put("/mappings/{gesture}", response_model=MappingResponse)
@@ -79,12 +86,17 @@ async def update_mapping_by_path(
     current_user: dict = Depends(get_current_user)
 ):
     """Update a specific gesture mapping by path parameter."""
-    return await _save_mapping_document(gesture, payload, current_user["user_id"])
+    if payload.gesture and payload.gesture.strip() != gesture.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Conflicting resource identifiers: URL specifies '{gesture}' but body specifies '{payload.gesture}'."
+        )
+    return await _save_mapping_document(gesture, payload, current_user["user_id"], is_path_param=True)
 
 
-async def _save_mapping_document(gesture_key: str, payload: MappingCreate, user_id: str) -> MappingResponse:
+async def _save_mapping_document(gesture_key: str, payload: MappingCreate, user_id: str, is_path_param: bool = False) -> MappingResponse:
     """Internal helper to persist gesture mapping."""
-    target_gesture = payload.gesture or gesture_key
+    target_gesture = gesture_key if is_path_param else (payload.gesture or gesture_key)
 
     # Security check: verify action is in whitelist
     if not ActionRegistry.is_safe(payload.action):
@@ -106,11 +118,18 @@ async def _save_mapping_document(gesture_key: str, payload: MappingCreate, user_
 
     mappings_coll = db_manager.get_mappings_collection()
     if mappings_coll is not None:
-        await mappings_coll.update_one(
-            {"user_id": user_id, "gesture": target_gesture},
-            {"$set": doc_data},
-            upsert=True
-        )
+        try:
+            await mappings_coll.update_one(
+                {"user_id": user_id, "gesture": target_gesture},
+                {"$set": doc_data},
+                upsert=True
+            )
+        except Exception as exc:
+            db_manager.record_failure(exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable: failed to save mapping."
+            )
     else:
         if user_id not in db_manager._mock_mappings:
             db_manager._mock_mappings[user_id] = []
@@ -130,7 +149,14 @@ async def delete_mapping(gesture: str, current_user: dict = Depends(get_current_
     mappings_coll = db_manager.get_mappings_collection()
 
     if mappings_coll is not None:
-        await mappings_coll.delete_one({"user_id": user_id, "gesture": gesture})
+        try:
+            await mappings_coll.delete_one({"user_id": user_id, "gesture": gesture})
+        except Exception as exc:
+            db_manager.record_failure(exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable: failed to delete mapping."
+            )
     elif user_id in db_manager._mock_mappings:
         db_manager._mock_mappings[user_id] = [
             m for m in db_manager._mock_mappings[user_id] if m["gesture"] != gesture

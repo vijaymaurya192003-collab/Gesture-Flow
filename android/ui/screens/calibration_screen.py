@@ -7,6 +7,7 @@ Interactive 3-step hand geometry calibration wizard:
 """
 import time
 from datetime import datetime, timezone
+import numpy as np
 try:
     from kivy.uix.screenmanager import Screen
     from kivy.uix.boxlayout import BoxLayout
@@ -146,23 +147,96 @@ class CalibrationScreen(Screen if KIVY_AVAILABLE else object):
             self.metric_label.text = f"Neutral Jitter StdDev: {self.calib_profile.neutral_jitter_std:.4f}"
             self.progress_bar.value = 100
 
+    def _collect_live_samples(self, n_frames=10):
+        """Collect up to n_frames of detected hand landmarks from active detector/camera."""
+        samples = []
+        camera = getattr(self.app, "camera", None)
+        detector = getattr(self.app, "detector", None)
+
+        if camera and detector:
+            for _ in range(n_frames):
+                try:
+                    ret, frame = camera.read_frame()
+                    if ret and frame is not None:
+                        hand_data = detector.detect_hands(frame)
+                        if hand_data and hand_data.hand_detected and hand_data.landmarks and len(hand_data.landmarks) >= 21:
+                            samples.append(hand_data.landmarks)
+                except Exception:
+                    pass
+                time.sleep(0.015)
+
+        if not samples:
+            latest = getattr(self.app, "latest_hand_data", None)
+            if latest and getattr(latest, "hand_detected", False) and getattr(latest, "landmarks", None):
+                if len(latest.landmarks) >= 21:
+                    samples.append(latest.landmarks)
+
+        return samples
+
     def _on_sample_step(self, instance):
-        """Simulate or capture live geometric baseline from active tracking."""
+        """Sample from the current live hand-tracking state over N frames."""
+        samples = self._collect_live_samples(n_frames=10)
+
         if self.current_step == 1:
-            # Baseline scale calculation
-            self.calib_profile.hand_size_baseline = 0.345
-            self.metric_label.text = f"Sampled Hand Scale: {self.calib_profile.hand_size_baseline:.3f} (Calibrated)"
-            self.metric_label.color = (0.3, 1.0, 0.4, 1)
+            # Average wrist-to-middle-MCP distance for hand scale baseline
+            if samples:
+                scales = []
+                for lm in samples:
+                    w, m = lm[0], lm[9]
+                    dist = float(np.sqrt((w.x - m.x) ** 2 + (w.y - m.y) ** 2))
+                    scales.append(dist)
+                self.calib_profile.hand_size_baseline = float(np.mean(scales))
+                status_suffix = f"({len(samples)} frames sampled)"
+            else:
+                self.calib_profile.hand_size_baseline = 0.350
+                status_suffix = "(Default baseline - no hand detected)"
+
+            if self.metric_label:
+                self.metric_label.text = f"Sampled Hand Scale: {self.calib_profile.hand_size_baseline:.3f} {status_suffix}"
+                self.metric_label.color = (0.3, 1.0, 0.4, 1)
+
         elif self.current_step == 2:
-            # Pinch threshold calculation
-            self.calib_profile.pinch_threshold = 0.052
-            self.metric_label.text = f"Sampled Pinch Threshold: {self.calib_profile.pinch_threshold:.4f} (Calibrated)"
-            self.metric_label.color = (0.3, 1.0, 0.4, 1)
+            # Average thumb-to-index distance for pinch threshold
+            if samples:
+                pinch_dists = []
+                for lm in samples:
+                    w, m = lm[0], lm[9]
+                    scale = max(0.05, float(np.sqrt((w.x - m.x) ** 2 + (w.y - m.y) ** 2)))
+                    t, i = lm[4], lm[8]
+                    dist_3d = float(np.sqrt((t.x - i.x) ** 2 + (t.y - i.y) ** 2 + (t.z - i.z) ** 2))
+                    norm_dist = dist_3d / scale
+                    pinch_dists.append(norm_dist)
+                avg_pinch = float(np.mean(pinch_dists))
+                self.calib_profile.pinch_threshold = max(0.15, min(0.60, float(avg_pinch * 1.25)))
+                status_suffix = f"({len(samples)} frames sampled)"
+            else:
+                self.calib_profile.pinch_threshold = 0.450
+                status_suffix = "(Default threshold - no hand detected)"
+
+            if self.metric_label:
+                self.metric_label.text = f"Sampled Pinch Threshold: {self.calib_profile.pinch_threshold:.4f} {status_suffix}"
+                self.metric_label.color = (0.3, 1.0, 0.4, 1)
+
         elif self.current_step == 3:
-            # Jitter calculation
-            self.calib_profile.neutral_jitter_std = 0.0028
-            self.metric_label.text = f"Sampled Jitter: {self.calib_profile.neutral_jitter_std:.4f} (Calibrated)"
-            self.metric_label.color = (0.3, 1.0, 0.4, 1)
+            # Palm-center stddev for stationary jitter deadzone
+            if samples:
+                palm_centers = []
+                for lm in samples:
+                    px = (lm[0].x + lm[5].x + lm[9].x + lm[17].x) / 4.0
+                    py = (lm[0].y + lm[5].y + lm[9].y + lm[17].y) / 4.0
+                    palm_centers.append((px, py))
+                std_x = float(np.std([p[0] for p in palm_centers])) if len(palm_centers) > 1 else 0.0028
+                std_y = float(np.std([p[1] for p in palm_centers])) if len(palm_centers) > 1 else 0.0028
+                jitter_val = float(np.sqrt(std_x ** 2 + std_y ** 2))
+                self.calib_profile.neutral_jitter_std = max(0.001, min(0.05, jitter_val))
+                status_suffix = f"({len(samples)} frames sampled)"
+            else:
+                self.calib_profile.neutral_jitter_std = 0.0028
+                status_suffix = "(Default jitter - no hand detected)"
+
+            if self.metric_label:
+                self.metric_label.text = f"Sampled Jitter: {self.calib_profile.neutral_jitter_std:.4f} {status_suffix}"
+                self.metric_label.color = (0.3, 1.0, 0.4, 1)
 
     def _on_next_step(self, instance):
         if self.current_step < 3:

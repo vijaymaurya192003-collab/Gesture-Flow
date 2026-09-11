@@ -1252,6 +1252,57 @@ function initCanvasSimulator() {
     mouseOffsetY = 0;
   });
 
+  function dispatchAndLogAction(actionToDispatch, logEntriesEl, contextSuffix = "", isContinuous = false) {
+    if (!actionToDispatch || actionToDispatch.action === "NONE") return;
+
+    if (actionToDispatch.action === "EMERGENCY_STOP") {
+      NativeGestureBridge.emergencyStop();
+      return;
+    }
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("BRIDGE_TIMEOUT")), 2500)
+    );
+
+    Promise.race([
+      NativeGestureBridge.dispatchAction(actionToDispatch),
+      timeoutPromise
+    ])
+      .then((res) => {
+        if (isContinuous) return;
+        const timeStr = new Date().toLocaleTimeString();
+        const row = document.createElement("div");
+        row.className = "log-row";
+
+        if (res && res.success && res.mode !== "simulated") {
+          row.innerHTML = `<span>[${timeStr}]</span> Dispatched: <strong>${actionToDispatch.action}</strong> ${contextSuffix}`;
+        } else if (res && res.mode === "simulated") {
+          row.innerHTML = `<span>[${timeStr}]</span> <span style="color:#94A3B8;">Simulated (Browser Dev):</span> <strong>${actionToDispatch.action}</strong> ${contextSuffix}`;
+        } else {
+          const reason = res?.reason || res?.error || "BRIDGE_UNAVAILABLE";
+          row.innerHTML = `<span>[${timeStr}]</span> <span style="color:#F59E0B;">Dispatch Failed:</span> <strong>${actionToDispatch.action}</strong> (${reason})`;
+        }
+
+        if (logEntriesEl) {
+          logEntriesEl.prepend(row);
+          if (logEntriesEl.children.length > 8) logEntriesEl.removeChild(logEntriesEl.lastChild);
+        }
+      })
+      .catch((err) => {
+        if (isContinuous) return;
+        const timeStr = new Date().toLocaleTimeString();
+        const row = document.createElement("div");
+        row.className = "log-row";
+        const msg = err?.message === "BRIDGE_TIMEOUT" ? "Bridge Timed Out (2500ms)" : (err?.message || "Bridge error");
+        row.innerHTML = `<span>[${timeStr}]</span> <span style="color:#EF4444;">Dispatch Error:</span> <strong>${actionToDispatch.action}</strong> (${msg})`;
+
+        if (logEntriesEl) {
+          logEntriesEl.prepend(row);
+          if (logEntriesEl.children.length > 8) logEntriesEl.removeChild(logEntriesEl.lastChild);
+        }
+      });
+  }
+
   // Manual Simulation Button Clicks
   simButtons.forEach(btn => {
     btn.addEventListener("click", () => {
@@ -1267,18 +1318,7 @@ function initCanvasSimulator() {
       confHud.textContent = `CONFIDENCE: ${Math.round(confidence * 100)}%`;
 
       if (actionToDispatch && actionToDispatch.action !== "NONE") {
-        if (actionToDispatch.action === "EMERGENCY_STOP") {
-          NativeGestureBridge.emergencyStop();
-        } else {
-          NativeGestureBridge.dispatchAction(actionToDispatch);
-        }
-
-        const timeStr = new Date().toLocaleTimeString();
-        const row = document.createElement("div");
-        row.className = "log-row";
-        row.innerHTML = `<span>[${timeStr}]</span> Dispatched: <strong>${actionToDispatch.action}</strong> (Simulator)`;
-        logEntries.prepend(row);
-        if (logEntries.children.length > 8) logEntries.removeChild(logEntries.lastChild);
+        dispatchAndLogAction(actionToDispatch, logEntries, "(Simulator)");
       }
     });
   });
@@ -1342,20 +1382,12 @@ function initCanvasSimulator() {
       confHud.textContent = `CONFIDENCE: ${Math.round(confidence * 100)}%`;
 
       if (gestureControlEnabled && actionToDispatch && actionToDispatch.action !== "NONE") {
-        if (actionToDispatch.action === "EMERGENCY_STOP") {
-          NativeGestureBridge.emergencyStop();
-        } else {
-          NativeGestureBridge.dispatchAction(actionToDispatch);
-        }
-
-        if (!isContinuous) {
-          const timeStr = new Date().toLocaleTimeString();
-          const row = document.createElement("div");
-          row.className = "log-row";
-          row.innerHTML = `<span>[${timeStr}]</span> Dispatched: <strong>${actionToDispatch.action}</strong> [Coord: ${Math.round(latestSmoothedPhysicalCoords.x)}, ${Math.round(latestSmoothedPhysicalCoords.y)}]`;
-          logEntries.prepend(row);
-          if (logEntries.children.length > 8) logEntries.removeChild(logEntries.lastChild);
-        }
+        dispatchAndLogAction(
+          actionToDispatch,
+          logEntries,
+          `[Coord: ${Math.round(latestSmoothedPhysicalCoords.x)}, ${Math.round(latestSmoothedPhysicalCoords.y)}]`,
+          isContinuous
+        );
       }
     } else {
       liveLandmarks = null;

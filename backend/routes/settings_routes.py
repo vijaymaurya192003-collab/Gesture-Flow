@@ -2,7 +2,7 @@
 Settings Routes
 Endpoints for user preferences and sensitivity parameters.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from backend.models.settings_models import SettingsUpdate, SettingsResponse
 from backend.security import get_current_user
 from backend.database import db_manager
@@ -17,10 +17,17 @@ async def get_settings(current_user: dict = Depends(get_current_user)):
     settings_coll = db_manager.get_settings_collection()
 
     if settings_coll is not None:
-        doc = await settings_coll.find_one({"user_id": user_id})
-        if doc:
-            doc.pop("_id", None)
-            return SettingsResponse(**doc)
+        try:
+            doc = await settings_coll.find_one({"user_id": user_id})
+            if doc:
+                doc.pop("_id", None)
+                return SettingsResponse(**doc)
+        except Exception as exc:
+            db_manager.record_failure(exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable while fetching settings."
+            )
     elif user_id in db_manager._mock_settings:
         return SettingsResponse(**db_manager._mock_settings[user_id])
 
@@ -36,10 +43,17 @@ async def update_settings(payload: SettingsUpdate, current_user: dict = Depends(
 
     settings_coll = db_manager.get_settings_collection()
     if settings_coll is not None:
-        await settings_coll.update_one({"user_id": user_id}, {"$set": update_data}, upsert=True)
-        doc = await settings_coll.find_one({"user_id": user_id})
-        doc.pop("_id", None)
-        return SettingsResponse(**doc)
+        try:
+            await settings_coll.update_one({"user_id": user_id}, {"$set": update_data}, upsert=True)
+            doc = await settings_coll.find_one({"user_id": user_id})
+            doc.pop("_id", None)
+            return SettingsResponse(**doc)
+        except Exception as exc:
+            db_manager.record_failure(exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable: failed to update settings."
+            )
     else:
         existing = db_manager._mock_settings.get(user_id, SettingsResponse(user_id=user_id).model_dump())
         existing.update(update_data)

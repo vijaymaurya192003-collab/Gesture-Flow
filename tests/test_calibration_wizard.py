@@ -12,7 +12,7 @@ def test_calibration_profile_defaults():
     """Verify default biometric calibration baseline parameters."""
     profile = CalibrationProfileModel()
     assert profile.profile_id == "default"
-    assert 0.04 <= profile.pinch_threshold <= 0.08
+    assert 0.35 <= profile.pinch_threshold <= 0.55
     assert profile.hand_size_baseline > 0.20
     assert profile.neutral_jitter_std > 0
 

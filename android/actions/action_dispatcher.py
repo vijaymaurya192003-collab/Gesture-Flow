@@ -5,7 +5,6 @@ Enforces mapping rules, whitelist verification, emergency stops, pause states, a
 from typing import Dict, Optional, Tuple, Callable
 from android.config.constants import GestureType, SafeActionType, DEFAULT_GESTURE_MAPPINGS
 from android.actions.action_registry import ActionRegistry
-from android.actions.action_registry import ActionRegistry
 from android.models.gesture_models import GestureResult, GestureMappingItem
 
 

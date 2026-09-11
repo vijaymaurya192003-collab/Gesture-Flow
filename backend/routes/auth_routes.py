@@ -19,22 +19,31 @@ async def register(payload: UserRegister):
     users_coll = db_manager.get_users_collection()
 
     if users_coll is not None:
-        existing = await users_coll.find_one({"email": email_clean})
-        if existing:
+        try:
+            existing = await users_coll.find_one({"email": email_clean})
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="A user with this email address is already registered"
+                )
+            user_id = str(uuid.uuid4())
+            user_doc = {
+                "_id": user_id,
+                "user_id": user_id,
+                "email": email_clean,
+                "name": payload.name.strip(),
+                "password_hash": hash_password(payload.password),
+                "created_at": datetime.now(timezone.utc)
+            }
+            await users_coll.insert_one(user_doc)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            db_manager.record_failure(exc)
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A user with this email address is already registered"
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable during registration."
             )
-        user_id = str(uuid.uuid4())
-        user_doc = {
-            "_id": user_id,
-            "user_id": user_id,
-            "email": email_clean,
-            "name": payload.name.strip(),
-            "password_hash": hash_password(payload.password),
-            "created_at": datetime.now(timezone.utc)
-        }
-        await users_coll.insert_one(user_doc)
     else:
         # In-memory mock fallback
         for u in db_manager._mock_users.values():
@@ -71,7 +80,14 @@ async def login(payload: UserLogin):
 
     user_doc = None
     if users_coll is not None:
-        user_doc = await users_coll.find_one({"email": email_clean})
+        try:
+            user_doc = await users_coll.find_one({"email": email_clean})
+        except Exception as exc:
+            db_manager.record_failure(exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable during login."
+            )
     else:
         for u in db_manager._mock_users.values():
             if u["email"] == email_clean:
@@ -103,7 +119,14 @@ async def get_my_profile(current_user: dict = Depends(get_current_user)):
     users_coll = db_manager.get_users_collection()
 
     if users_coll is not None:
-        user_doc = await users_coll.find_one({"_id": user_id})
+        try:
+            user_doc = await users_coll.find_one({"_id": user_id})
+        except Exception as exc:
+            db_manager.record_failure(exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service unavailable."
+            )
         if user_doc:
             return UserResponse(
                 user_id=user_id,

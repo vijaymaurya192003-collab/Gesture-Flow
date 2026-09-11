@@ -171,3 +171,148 @@ def test_unwhitelisted_action_rejected():
         "enabled": True
     })
     assert res.status_code == 400
+
+
+def test_put_mapping_conflicting_body_gesture_rejected_regression():
+    """Regression test #4: PUT /mappings/{gesture} with different body gesture returns 400 and preserves original."""
+    login_res = client.post("/auth/login", json={
+        "email": "student@college.edu",
+        "password": "securepassword123"
+    })
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # First set PINCH to TAP
+    init_res = client.post("/mappings", headers=headers, json={
+        "gesture": "PINCH",
+        "action": "TAP",
+        "sensitivity": 1.0,
+        "confidence_threshold": 0.70,
+        "cooldown_ms": 400,
+        "enabled": True
+    })
+    assert init_res.status_code == 201
+
+    # Attempt PUT /mappings/PINCH with conflicting body gesture "FIST"
+    put_res = client.put("/mappings/PINCH", headers=headers, json={
+        "gesture": "FIST",
+        "action": "VOLUME_UP",
+        "sensitivity": 1.0,
+        "confidence_threshold": 0.70,
+        "cooldown_ms": 400,
+        "enabled": True
+    })
+    assert put_res.status_code == 400
+    assert "Conflicting resource identifiers" in put_res.json()["detail"]
+
+    # Confirm PINCH mapping was NOT modified
+    verify_res = client.get("/mappings", headers=headers)
+    assert verify_res.status_code == 200
+    pinch_map = next(m for m in verify_res.json() if m["gesture"] == "PINCH")
+    assert pinch_map["action"] == "TAP"
+
+
+def test_stats_summary_last_active_true_max_out_of_order_regression():
+    """Regression test #5: Stats summary last_active returns true max across out-of-order records."""
+    from datetime import datetime, timezone, timedelta
+    login_res = client.post("/auth/login", json={
+        "email": "student@college.edu",
+        "password": "securepassword123"
+    })
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Clear mock stats for test
+    db_manager._mock_stats.clear()
+
+    base = datetime(2026, 9, 10, 10, 0, 0, tzinfo=timezone.utc)
+    t1 = base
+    t2 = base + timedelta(hours=5)   # True latest
+    t3 = base + timedelta(hours=2)   # Middle, but inserted last
+
+    user_id = client.get("/auth/me", headers=headers).json()["user_id"]
+    db_manager._mock_stats.append({
+        "user_id": user_id,
+        "session_duration_seconds": 10.0,
+        "gesture_counts": {"PINCH": 1},
+        "average_fps": 30.0,
+        "platform": "desktop",
+        "app_version": "1.0.0",
+        "timestamp": t1
+    })
+    db_manager._mock_stats.append({
+        "user_id": user_id,
+        "session_duration_seconds": 20.0,
+        "gesture_counts": {"PINCH": 2},
+        "average_fps": 30.0,
+        "platform": "desktop",
+        "app_version": "1.0.0",
+        "timestamp": t2  # MAX timestamp
+    })
+    db_manager._mock_stats.append({
+        "user_id": user_id,
+        "session_duration_seconds": 15.0,
+        "gesture_counts": {"PINCH": 3},
+        "average_fps": 30.0,
+        "platform": "desktop",
+        "app_version": "1.0.0",
+        "timestamp": t3  # Inserted last, but earlier than t2
+    })
+    db_manager._mock_stats.append({
+        "user_id": user_id,
+        "session_duration_seconds": 5.0,
+        "gesture_counts": {"PINCH": 1},
+        "average_fps": 30.0,
+        "platform": "desktop",
+        "app_version": "1.0.0",
+        "timestamp": "invalid-timestamp-string"
+    })
+
+    summary_res = client.get("/stats/summary", headers=headers)
+    assert summary_res.status_code == 200
+    summary_data = summary_res.json()
+    assert summary_data["total_sessions"] == 4
+    assert summary_data["last_active"] == t2.isoformat()
+
+
+def test_production_environment_fails_loudly_on_unset_secrets_regression():
+    """Regression test #1: BackendSettings fails loudly with clear error in production if secrets are unset."""
+    import os
+    from backend.config import BackendSettings
+
+    orig_env = os.environ.get("ENVIRONMENT")
+    orig_jwt = os.environ.get("JWT_SECRET")
+    orig_mongo = os.environ.get("MONGODB_URI")
+    try:
+        os.environ["ENVIRONMENT"] = "production"
+        os.environ["JWT_SECRET"] = "changeme_use_a_long_random_value"
+        os.environ["MONGODB_URI"] = "mongodb+srv://<user>:<password>@<cluster>/"
+
+        with pytest.raises(RuntimeError) as exc_info:
+            BackendSettings()
+        assert "Production startup failed" in str(exc_info.value)
+    finally:
+        if orig_env is not None:
+            os.environ["ENVIRONMENT"] = orig_env
+        else:
+            os.environ.pop("ENVIRONMENT", None)
+        if orig_jwt is not None:
+            os.environ["JWT_SECRET"] = orig_jwt
+        else:
+            os.environ.pop("JWT_SECRET", None)
+        if orig_mongo is not None:
+            os.environ["MONGODB_URI"] = orig_mongo
+        else:
+            os.environ.pop("MONGODB_URI", None)
+
+
+def test_cors_allowlist_no_regex_wildcard_bypass_regression():
+    """Regression test #2: Verify random untrusted origin is NOT allowed by CORS."""
+    res = client.options(
+        "/health",
+        headers={
+            "Origin": "https://evil-untrusted-origin.com",
+            "Access-Control-Request-Method": "GET"
+        }
+    )
+    assert res.headers.get("access-control-allow-origin") != "https://evil-untrusted-origin.com"
