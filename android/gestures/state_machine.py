@@ -164,7 +164,7 @@ class GestureStateMachine:
                 }
             )
 
-        if detected_gesture == GestureType.INDEX_POINT:
+        if detected_gesture == GestureType.INDEX_POINT or mapped_action == SafeActionType.POINTER_MOVE.value:
             self.current_state = GestureStateEnum.ACTION_TRIGGERED if mapped_action != "NONE" else GestureStateEnum.TRACKING
             self.last_action_timestamp = now
             self.is_two_finger_scrolling = False
@@ -177,12 +177,15 @@ class GestureStateMachine:
                     pointer_coords=features.pointer_pos if features else None,
                     metadata={"continuous": True, "disabled": True}
                 )
+            coords = features.pointer_pos if features else None
+            if detected_gesture == GestureType.OPEN_PALM and features:
+                coords = features.palm_center
             return GestureResult(
                 gesture=detected_gesture.value,
                 confidence=confidence,
                 action=mapped_action,
                 state=GestureStateEnum.ACTION_TRIGGERED,
-                pointer_coords=features.pointer_pos if features else None,
+                pointer_coords=coords,
                 metadata={"continuous": True}
             )
 

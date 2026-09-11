@@ -47,11 +47,13 @@ class HandDetector:
                 min_tracking_confidence=self.min_tracking_confidence
             )
             self._backend_name = "MediaPipe Desktop (Python Wheel)"
+            print(f"[HandDetector] Successfully initialized {self._backend_name}.")
         except Exception as e:
             # MediaPipe is not compiled for Python-for-Android arm64.
             # In native Android production, MediaPipe Tasks Vision AAR is integrated via Java.
             self._hands = None
-            self._backend_name = "Unavailable / Native AAR Required on Android"
+            self._backend_name = f"Unavailable ({type(e).__name__})"
+            print(f"[HandDetector] Warning: Hand detector unavailable ({e}). Running without MediaPipe.")
 
     def is_available(self) -> bool:
         """Check if active landmark tracking backend is initialized."""

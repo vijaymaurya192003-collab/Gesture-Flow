@@ -218,6 +218,18 @@ def run_desktop_interactive_mode(debug_latency: bool = False, camera_idx: int = 
                     2,
                     cv2.LINE_AA
                 )
+            elif vision_worker.dispatcher.gestures_paused:
+                cv2.rectangle(display_frame, (0, 60), (display_frame.shape[1], 100), (0, 140, 255), -1)
+                cv2.putText(
+                    display_frame,
+                    "GESTURES PAUSED - Show OPEN PALM or Press [P] to Resume",
+                    (30, 88),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA
+                )
 
             # Show window
             cv2.imshow(window_name, display_frame)
