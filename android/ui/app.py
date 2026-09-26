@@ -167,6 +167,8 @@ class GestureFlowApp(App if KIVY_AVAILABLE else object):
         # 3. Classify Gesture
         g_type, conf, features = self.classifier.classify(hand_data.landmarks)
         mapped_action = self.dispatcher.get_mapped_action_name(g_type)
+        mapping_item = self.dispatcher.get_mapping_item(g_type)
+        min_confidence = mapping_item.confidence_threshold if mapping_item else 0.60
 
         # 4. State Machine & Debounce
         result = self.state_machine.process_frame(
@@ -174,7 +176,8 @@ class GestureFlowApp(App if KIVY_AVAILABLE else object):
             detected_gesture=g_type,
             confidence=conf,
             features=features,
-            mapped_action=mapped_action
+            mapped_action=mapped_action,
+            min_confidence=min_confidence
         )
 
         # 5. Dispatch Action

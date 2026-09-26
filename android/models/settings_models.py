@@ -9,7 +9,7 @@ class CalibrationProfileModel(BaseModel):
     """Hand calibration baseline for specific user hand size and resting posture."""
     profile_id: str = "default"
     user_id: Optional[str] = None
-    pinch_threshold: float = 0.45  # Normalized distance between thumb & index tip (reconciled to match classifier & confidence engine)
+    pinch_threshold: float = 0.35  # Normalized distance between thumb & index tip
     hand_size_baseline: float = 0.35  # Wrist to middle finger tip baseline
     neutral_jitter_std: float = 0.003
     min_confidence_floor: float = 0.60

@@ -58,6 +58,10 @@ class HandFeatures:
     is_air_tap: bool = False
     index_z_velocity: float = 0.0
 
+    # Two-Finger Tap detection (Secondary / Right click)
+    is_two_finger_tap: bool = False
+    two_finger_z_velocity: float = 0.0
+
 
 def _distance_2d(p1: LandmarkPoint, p2: LandmarkPoint) -> float:
     """Euclidean distance in 2D normalized space."""
@@ -69,12 +73,58 @@ def _distance_3d(p1: LandmarkPoint, p2: LandmarkPoint) -> float:
     return float(np.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2))
 
 
+def _finger_extension_angle(mcp: LandmarkPoint, pip: LandmarkPoint, tip: LandmarkPoint) -> float:
+    """
+    Calculates the 3D angle (in degrees) at the PIP joint between (MCP - PIP) and (TIP - PIP).
+    A straight, fully extended finger yields ~180°.
+    A curled or bent finger bends sharply at the PIP/DIP joints (< 140°).
+    """
+    v1 = np.array([mcp.x - pip.x, mcp.y - pip.y, mcp.z - pip.z], dtype=float)
+    v2 = np.array([tip.x - pip.x, tip.y - pip.y, tip.z - pip.z], dtype=float)
+    n1 = float(np.linalg.norm(v1))
+    n2 = float(np.linalg.norm(v2))
+    if n1 < 1e-6 or n2 < 1e-6:
+        return 0.0
+    cosine = np.dot(v1, v2) / (n1 * n2)
+    cosine = float(np.clip(cosine, -1.0, 1.0))
+    return float(np.degrees(np.arccos(cosine)))
+
+
+def _is_finger_extended(
+    wrist: LandmarkPoint,
+    mcp: LandmarkPoint,
+    pip: LandmarkPoint,
+    tip: LandmarkPoint,
+    dist_ratio_threshold: float = 1.12,
+    angle_threshold: float = 145.0
+) -> bool:
+    """
+    Geometry-aware finger extension check.
+    A finger is only considered extended if BOTH:
+    1. Distance from wrist to tip significantly exceeds wrist to PIP distance (in 2D or 3D).
+    2. Joint angle at PIP is straight (>= angle_threshold), proving it is not curled.
+    """
+    d_wrist_pip_2d = _distance_2d(wrist, pip)
+    d_wrist_tip_2d = _distance_2d(wrist, tip)
+    d_wrist_pip_3d = _distance_3d(wrist, pip)
+    d_wrist_tip_3d = _distance_3d(wrist, tip)
+
+    dist_ok = (d_wrist_tip_2d > d_wrist_pip_2d * dist_ratio_threshold) or (
+        d_wrist_tip_3d > d_wrist_pip_3d * (dist_ratio_threshold * 1.02)
+    )
+    angle = _finger_extension_angle(mcp, pip, tip)
+    angle_ok = (angle >= angle_threshold)
+
+    return bool(dist_ok and angle_ok)
+
+
 def extract_hand_features(
     landmarks: List[LandmarkPoint],
     history_palm_centers: Optional[List[Tuple[float, float]]] = None,
     prev_pinch_distance: Optional[float] = None,
     prev_two_finger_center: Optional[Tuple[float, float]] = None,
-    prev_index_z: Optional[float] = None
+    prev_index_z: Optional[float] = None,
+    prev_two_finger_z: Optional[float] = None
 ) -> Optional[HandFeatures]:
     """
     Computes all geometric features from 21 MediaPipe hand landmarks.
@@ -111,14 +161,16 @@ def extract_hand_features(
     # Hand Scale Reference: distance from Wrist (0) to Middle MCP (9)
     hand_scale = max(0.05, _distance_2d(wrist, middle_mcp))
 
-    # 1. Finger extension determination (distance from wrist to tip vs PIP)
-    index_extended = _distance_2d(wrist, index_tip) > _distance_2d(wrist, index_pip) * 1.05
-    middle_extended = _distance_2d(wrist, middle_tip) > _distance_2d(wrist, middle_pip) * 1.08
-    ring_extended = _distance_2d(wrist, ring_tip) > _distance_2d(wrist, ring_pip) * 1.08
-    pinky_extended = _distance_2d(wrist, pinky_tip) > _distance_2d(wrist, pinky_pip) * 1.08
+    # 1. Geometry-aware finger extension determination (distance ratio + joint angle)
+    index_extended = _is_finger_extended(wrist, index_mcp, index_pip, index_tip, dist_ratio_threshold=1.10, angle_threshold=145.0)
+    middle_extended = _is_finger_extended(wrist, middle_mcp, middle_pip, middle_tip, dist_ratio_threshold=1.12, angle_threshold=145.0)
+    ring_extended = _is_finger_extended(wrist, ring_mcp, ring_pip, ring_tip, dist_ratio_threshold=1.12, angle_threshold=145.0)
+    pinky_extended = _is_finger_extended(wrist, pinky_mcp, pinky_pip, pinky_tip, dist_ratio_threshold=1.10, angle_threshold=138.0)
 
-    # Thumb extension: check distance from thumb tip to pinky MCP
-    thumb_extended = _distance_2d(pinky_mcp, thumb_tip) > _distance_2d(pinky_mcp, thumb_ip) * 1.15
+    # Thumb extension: check distance from thumb tip to pinky MCP and thumb angle
+    thumb_dist_extended = _distance_2d(pinky_mcp, thumb_tip) > _distance_2d(pinky_mcp, thumb_ip) * 1.15
+    thumb_angle = _finger_extension_angle(thumb_mcp, thumb_ip, thumb_tip)
+    thumb_extended = bool(thumb_dist_extended and thumb_angle > 125.0)
 
     # 2. Normalized Pinch Distance (Thumb Tip to Index Tip divided by Hand Scale)
     raw_pinch_dist = _distance_3d(thumb_tip, index_tip)
@@ -183,13 +235,14 @@ def extract_hand_features(
         )
 
     # Touchpad mode is active when Index and Middle are extended, Ring and Pinky are curled,
-    # and the two fingers are held closely together (separation < 0.55)
+    # and the two fingers are held closely together (separation < 0.48) with height alignment
     is_two_finger_touchpad = False
     is_peace_sign = False
     if index_extended and middle_extended and not ring_extended and not pinky_extended:
-        if two_finger_separation_norm < 0.55:
+        tips_height_aligned = abs(index_tip.y - middle_tip.y) < (hand_scale * 0.45)
+        if two_finger_separation_norm < 0.48 and tips_height_aligned:
             is_two_finger_touchpad = True
-        else:
+        elif two_finger_separation_norm >= 0.55:
             is_peace_sign = True
 
     # 7. Air Tap (Z-Axis Forward Motion Pulse)
@@ -198,10 +251,21 @@ def extract_hand_features(
     if prev_index_z is not None:
         # Negative z in MediaPipe is closer to camera (forward tap)
         index_z_velocity = float(index_tip.z - prev_index_z)
-        if index_extended and not middle_extended and not ring_extended and not pinky_extended:
+        if index_extended and not ring_extended and not pinky_extended and not middle_extended:
             # Significant forward motion towards camera
             if index_z_velocity < -0.025:
                 is_air_tap = True
+
+    # 8. Two-Finger Tap (Z-Axis Forward Motion Pulse while in Two-Finger Posture)
+    is_two_finger_tap = False
+    two_finger_z = float((index_tip.z + middle_tip.z) / 2.0)
+    two_finger_z_velocity = 0.0
+    if prev_two_finger_z is not None:
+        two_finger_z_velocity = float(two_finger_z - prev_two_finger_z)
+        if is_two_finger_touchpad:
+            lateral_speed = float(np.sqrt(two_finger_delta[0] ** 2 + two_finger_delta[1] ** 2))
+            if two_finger_z_velocity < -0.020 and lateral_speed < 0.035:
+                is_two_finger_tap = True
 
     return HandFeatures(
         thumb_extended=thumb_extended,
@@ -225,5 +289,7 @@ def extract_hand_features(
         is_two_finger_touchpad=is_two_finger_touchpad,
         is_peace_sign=is_peace_sign,
         is_air_tap=is_air_tap,
-        index_z_velocity=index_z_velocity
+        index_z_velocity=index_z_velocity,
+        is_two_finger_tap=is_two_finger_tap,
+        two_finger_z_velocity=two_finger_z_velocity
     )

@@ -87,6 +87,8 @@ class AsyncVisionWorker:
             t_cl_start = time.perf_counter()
             g_type, conf, features = self.classifier.classify(hand_data.landmarks)
             mapped_action = self.dispatcher.get_mapped_action_name(g_type)
+            mapping_item = self.dispatcher.get_mapping_item(g_type)
+            min_confidence = mapping_item.confidence_threshold if mapping_item else 0.60
             t_cl_end = time.perf_counter()
             classification_ms = (t_cl_end - t_cl_start) * 1000.0
 
@@ -97,7 +99,8 @@ class AsyncVisionWorker:
                 detected_gesture=g_type,
                 confidence=conf,
                 features=features,
-                mapped_action=mapped_action
+                mapped_action=mapped_action,
+                min_confidence=min_confidence
             )
             self.dispatcher.dispatch(result)
             t_act_end = time.perf_counter()

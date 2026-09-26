@@ -17,7 +17,7 @@ class GestureClassifier:
 
     def __init__(
         self,
-        pinch_threshold: float = 0.45,
+        pinch_threshold: float = 0.35,
         swipe_velocity_threshold: float = 0.045,
         history_len: int = 5
     ):
@@ -29,6 +29,11 @@ class GestureClassifier:
         self._prev_pinch_distance: Optional[float] = None
         self._prev_two_finger_center: Optional[Tuple[float, float]] = None
         self._prev_index_z: Optional[float] = None
+        self._prev_two_finger_z: Optional[float] = None
+
+        # Temporal confirmation & hysteresis tracking
+        self._two_finger_consecutive_frames: int = 0
+        self._last_detected_gesture: GestureType = GestureType.NONE
 
     def set_pinch_threshold(self, threshold: float) -> None:
         """Update calibration pinch sensitivity threshold."""
@@ -49,7 +54,8 @@ class GestureClassifier:
             history_palm_centers=list(self._palm_history),
             prev_pinch_distance=self._prev_pinch_distance,
             prev_two_finger_center=self._prev_two_finger_center,
-            prev_index_z=self._prev_index_z
+            prev_index_z=self._prev_index_z,
+            prev_two_finger_z=self._prev_two_finger_z
         )
         if features is None:
             return GestureType.NONE, 0.0, None
@@ -59,13 +65,35 @@ class GestureClassifier:
         self._prev_pinch_distance = features.pinch_distance_norm
         self._prev_two_finger_center = features.two_finger_center
         self._prev_index_z = landmarks[8].z
+        self._prev_two_finger_z = float((landmarks[8].z + landmarks[12].z) / 2.0)
+
+        # Track consecutive two-finger frames for temporal confirmation
+        if features.is_two_finger_touchpad:
+            self._two_finger_consecutive_frames += 1
+        else:
+            self._two_finger_consecutive_frames = 0
+
+        # Temporal confirmation guard:
+        # If user is currently holding a single-finger pointer, pinch, or static gesture,
+        # require at least 2 consecutive frames of two-finger posture before committing to two-finger mode.
+        # This prevents 1-frame tracking noise/wobble from hijacking classification away from the active gesture.
+        # If starting from NONE (hand raised/idle) or already in two-finger mode, allow immediately.
+        is_already_two_finger = self._last_detected_gesture in (
+            GestureType.TWO_FINGER_TOUCHPAD,
+            GestureType.TWO_FINGER_SCROLL,
+            GestureType.TWO_FINGER_TAP
+        )
+        is_from_idle = (self._last_detected_gesture == GestureType.NONE)
+        allow_two_finger = is_already_two_finger or is_from_idle or (self._two_finger_consecutive_frames >= 2)
 
         detected_gesture = GestureType.NONE
 
         # =========================================================================
         # PRIORITY 1: PINCH (Pinch Zoom & Tap)
+        # Requires the index finger to be participating (extended): a thumbs-up
+        # also puts the thumb tip near the folded index tip and must not pinch.
         # =========================================================================
-        if features.pinch_distance_norm < self.pinch_threshold:
+        if features.index_extended and features.pinch_distance_norm < self.pinch_threshold:
             # Check for continuous proportional zoom: expanding vs contracting distance
             if abs(features.pinch_delta) > 0.012:
                 if features.pinch_delta > 0:
@@ -76,17 +104,23 @@ class GestureClassifier:
                 detected_gesture = GestureType.PINCH
 
         # =========================================================================
-        # PRIORITY 2: TWO-FINGER TOUCHPAD MODE (Cursor, Scroll & Secondary Tap)
+        # PRIORITY 2: TWO-FINGER TOUCHPAD MODE (Tap, Scroll & Touchpad Cursor)
         # =========================================================================
-        elif features.is_two_finger_touchpad:
+        elif allow_two_finger and features.is_two_finger_touchpad:
             dx, dy = features.two_finger_delta
             speed_2f = np.sqrt(dx * dx + dy * dy)
 
-            # If vertical motion dominates and speed exceeds threshold -> Two-finger vertical scroll
-            if speed_2f > 0.02 and abs(dy) > abs(dx) * 1.3:
+            # 2a. TWO-FINGER TAP (Right-Click Context Action)
+            # High-priority sub-branch: forward Z pulse while stationary in XY
+            if features.is_two_finger_tap:
+                detected_gesture = GestureType.TWO_FINGER_TAP
+
+            # 2b. TWO-FINGER SCROLL (Vertical Motion Dominates)
+            elif speed_2f > 0.02 and abs(dy) > abs(dx) * 1.3:
                 detected_gesture = GestureType.TWO_FINGER_SCROLL
+
+            # 2c. TWO-FINGER TOUCHPAD (Relative Cursor Movement)
             else:
-                # Standard two-finger touchpad navigation
                 detected_gesture = GestureType.TWO_FINGER_TOUCHPAD
 
         # =========================================================================
@@ -97,8 +131,13 @@ class GestureClassifier:
 
         # =========================================================================
         # PRIORITY 4: ONE-FINGER SWIPE (High Velocity Directional Motion)
+        # Swipes require an open hand (all four fingers extended): without this
+        # gate, fast index-point / pinch / touchpad motion is misread as swipe
+        # and fires BACK / HOME system actions.
         # =========================================================================
-        elif np.sqrt(features.velocity[0] ** 2 + features.velocity[1] ** 2) > self.swipe_velocity_threshold:
+        elif (features.index_extended and features.middle_extended
+                and features.ring_extended and features.pinky_extended
+                and np.sqrt(features.velocity[0] ** 2 + features.velocity[1] ** 2) > self.swipe_velocity_threshold):
             vx, vy = features.velocity
             if abs(vx) > abs(vy):
                 detected_gesture = GestureType.SWIPE_RIGHT if vx > 0 else GestureType.SWIPE_LEFT
@@ -107,8 +146,12 @@ class GestureClassifier:
 
         # =========================================================================
         # PRIORITY 5: INDEX POINT (Standard Single-Finger Cursor Pointer)
+        # If user was previously in INDEX_POINT and an unconfirmed 1-frame middle-finger
+        # wobble occurred, maintain continuity instead of dropping to NONE.
         # =========================================================================
-        elif features.index_extended and not features.middle_extended and not features.ring_extended and not features.pinky_extended:
+        elif features.index_extended and not features.ring_extended and not features.pinky_extended and (
+            not features.middle_extended or (self._last_detected_gesture == GestureType.INDEX_POINT and not allow_two_finger)
+        ):
             detected_gesture = GestureType.INDEX_POINT
 
         # =========================================================================
@@ -132,6 +175,7 @@ class GestureClassifier:
         else:
             detected_gesture = GestureType.NONE
 
+        self._last_detected_gesture = detected_gesture
         conf = ConfidenceEngine.calculate_confidence(detected_gesture, features, self.pinch_threshold)
         return detected_gesture, conf, features
 
@@ -141,3 +185,6 @@ class GestureClassifier:
         self._prev_pinch_distance = None
         self._prev_two_finger_center = None
         self._prev_index_z = None
+        self._prev_two_finger_z = None
+        self._two_finger_consecutive_frames = 0
+        self._last_detected_gesture = GestureType.NONE

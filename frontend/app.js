@@ -37,7 +37,7 @@ const SAFE_ACTIONS = [
 
 // Calibration Thresholds
 let calibrationConfig = {
-  pinch_threshold: 0.45,
+  pinch_threshold: 0.35,
   hand_scale_baseline: 0.20,
   confidence_threshold: 0.70,
   jitter_deadband: 0.012,
@@ -461,7 +461,7 @@ class FrontendGestureClassifier {
       confidence = 0.92;
     }
     // PRIORITY 3: PINCH (Pinch Zoom & Tap)
-    else if (features.pinchDistNorm < calibrationConfig.pinch_threshold) {
+    else if (features.indexExtended && features.pinchDistNorm < calibrationConfig.pinch_threshold) {
       if (Math.abs(features.pinchDelta) > 0.015) {
         detectedGesture = features.pinchDelta > 0 ? "PINCH_OUT" : "PINCH_IN";
         confidence = 0.90;
@@ -476,7 +476,10 @@ class FrontendGestureClassifier {
       confidence = 0.92;
     }
     // PRIORITY 5: SWIPES (Directional Velocity Vectors)
-    else if (Math.sqrt(features.velocity.x * features.velocity.x + features.velocity.y * features.velocity.y) > this.swipeVelocityThreshold) {
+    // Swipes require an open hand: fast point/pinch/touchpad motion must not
+    // be misread as swipe (which maps to BACK / HOME system actions).
+    else if (features.indexExtended && features.middleExtended && features.ringExtended && features.pinkyExtended
+        && Math.sqrt(features.velocity.x * features.velocity.x + features.velocity.y * features.velocity.y) > this.swipeVelocityThreshold) {
       const vx = features.velocity.x;
       const vy = features.velocity.y;
       if (Math.abs(vx) > Math.abs(vy)) {
