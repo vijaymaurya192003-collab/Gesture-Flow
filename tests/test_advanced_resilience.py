@@ -136,7 +136,7 @@ def test_emergency_stop_remains_locked_under_burst_events():
 
 def test_gesture_cooldown_override_configuration():
     """Verify custom cooldown durations are enforced per gesture."""
-    sm = GestureStateMachine()
+    sm = GestureStateMachine(palm_hold_ms=0)
     sm.set_cooldown(GestureType.OPEN_PALM.value, 1200)
 
     features = HandFeatures(extended_count=5)

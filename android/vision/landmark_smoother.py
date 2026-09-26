@@ -36,7 +36,8 @@ class LandmarkSmoother:
             # Compute movement Euclidean distance
             dx = curr.x - prev.x
             dy = curr.y - prev.y
-            dist = np.sqrt(dx * dx + dy * dy)
+            dz = curr.z - prev.z
+            dist = np.sqrt(dx * dx + dy * dy + dz * dz)
 
             # Jitter deadband: If motion is negligible, lock to previous coordinate
             if dist < self.jitter_threshold:

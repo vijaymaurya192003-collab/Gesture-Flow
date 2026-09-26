@@ -87,6 +87,7 @@ class AsyncVisionWorker:
             t_cl_start = time.perf_counter()
             g_type, conf, features = self.classifier.classify(hand_data.landmarks)
             mapped_action = self.dispatcher.get_mapped_action_name(g_type)
+            mapping = self.dispatcher.get_mapping_item(g_type)
             t_cl_end = time.perf_counter()
             classification_ms = (t_cl_end - t_cl_start) * 1000.0
 
@@ -97,7 +98,8 @@ class AsyncVisionWorker:
                 detected_gesture=g_type,
                 confidence=conf,
                 features=features,
-                mapped_action=mapped_action
+                mapped_action=mapped_action,
+                min_confidence=mapping.confidence_threshold if mapping else 0.60
             )
             self.dispatcher.dispatch(result)
             t_act_end = time.perf_counter()
@@ -234,17 +236,19 @@ def run_desktop_interactive_mode(debug_latency: bool = False, camera_idx: int = 
             # Show window
             cv2.imshow(window_name, display_frame)
 
+            # Explicit keyboard commands bypass vision hold timers and avoid
+            # mutating the worker thread's state machine.
             # Keyboard handler
             key = cv2.waitKey(1) & 0xFF
             if key in (27, ord('q'), ord('Q')):
                 break
             elif key in (ord('p'), ord('P')):
                 vision_worker.dispatcher.dispatch(
-                    vision_worker.state_machine.process_frame(True, GestureType.OPEN_PALM, 0.9, None, SafeActionType.PAUSE_GESTURES.value)
+                    GestureResult(gesture=GestureType.OPEN_PALM.value, confidence=1.0, action=SafeActionType.PAUSE_GESTURES.value)
                 )
             elif key in (ord('e'), ord('E')):
                 vision_worker.dispatcher.dispatch(
-                    vision_worker.state_machine.process_frame(True, GestureType.FIST, 0.95, None, SafeActionType.EMERGENCY_STOP.value)
+                    GestureResult(gesture=GestureType.FIST.value, confidence=1.0, action=SafeActionType.EMERGENCY_STOP.value)
                 )
             elif key in (ord('r'), ord('R')):
                 vision_worker.dispatcher.reset_emergency_stop()
