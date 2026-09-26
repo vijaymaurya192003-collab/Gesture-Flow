@@ -25,7 +25,12 @@ echo [Info] Working Directory: %CD%
 if exist "%PROJECT_DIR%.venv\Scripts\python.exe" (
     "%PROJECT_DIR%.venv\Scripts\python.exe" "%PROJECT_DIR%main.py"
 ) else (
-    uv run python main.py
+    where uv >nul 2>nul
+    if %ERRORLEVEL% EQU 0 (
+        uv run python main.py
+    ) else (
+        python main.py
+    )
 )
 
 if %ERRORLEVEL% NEQ 0 (
