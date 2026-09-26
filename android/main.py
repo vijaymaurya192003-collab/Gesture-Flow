@@ -3,12 +3,21 @@ Gesture Flow Application Entry Point
 Supports running on Android (via Kivy) or in Desktop Interactive Demo Mode (via OpenCV GUI).
 Includes real-time pipeline latency instrumentation, asynchronous vision processing, and multi-backend webcam resilience.
 """
+import os
 import sys
 import time
 import threading
 import argparse
 from typing import Optional
 import cv2
+
+# Ensure project root is prioritized in sys.path when running android/main.py directly
+_current_dir = os.path.abspath(os.path.dirname(__file__))
+_parent_dir = os.path.dirname(_current_dir)
+while _current_dir in sys.path:
+    sys.path.remove(_current_dir)
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
 
 from android.camera.opencv_camera import OpenCVCamera
 from android.vision.hand_detector import HandDetector
