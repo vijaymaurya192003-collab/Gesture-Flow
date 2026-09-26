@@ -111,6 +111,8 @@ def test_two_finger_touchpad_mode():
     classifier = GestureClassifier()
     # Index & Middle extended close together (< 0.55 separation)
     hand = create_hand_skeleton(index_extended=True, middle_extended=True, ring_extended=False, pinky_extended=False, two_finger_close=True)
+    assert classifier.classify(hand)[0] == GestureType.NONE
+    assert classifier.classify(hand)[0] == GestureType.NONE
     g, conf, feats = classifier.classify(hand)
     assert g == GestureType.TWO_FINGER_TOUCHPAD
     assert feats.is_two_finger_touchpad is True
@@ -183,3 +185,267 @@ def test_safe_action_whitelist():
             continue
         assert ActionRegistry.is_safe(action.value), f"Action '{action.value}' not in ActionRegistry whitelist!"
 
+
+
+@pytest.mark.parametrize("depth", [-0.06, 0.06])
+def test_smoother_preserves_depth_only_motion(depth):
+    from android.vision.landmark_smoother import LandmarkSmoother
+
+    smoother = LandmarkSmoother()
+    rest = smoother.smooth(create_hand_skeleton())
+    moved = smoother.smooth(create_hand_skeleton(index_z=depth))
+    assert moved[8].x == rest[8].x
+    assert moved[8].y == rest[8].y
+    assert 0 < abs(moved[8].z) < abs(depth)
+    assert moved[8].z * depth > 0
+
+
+def test_air_tap_survives_smoothing():
+    from android.vision.landmark_smoother import LandmarkSmoother
+
+    smoother = LandmarkSmoother()
+    classifier = GestureClassifier()
+    classifier.classify(smoother.smooth(create_hand_skeleton()))
+    gesture, _, _ = classifier.classify(
+        smoother.smooth(create_hand_skeleton(index_z=-0.06))
+    )
+    assert gesture == GestureType.AIR_TAP
+
+
+def test_smoother_deadband_and_tracking_reset():
+    from android.vision.landmark_smoother import LandmarkSmoother
+
+    smoother = LandmarkSmoother()
+    rest = smoother.smooth(create_hand_skeleton())
+    jitter = smoother.smooth(create_hand_skeleton(index_z=0.001))
+    assert jitter[8] == rest[8]
+    assert smoother.smooth([]) == []
+    assert smoother.smooth(create_hand_skeleton(index_z=-0.06))[8].z == -0.06
+
+
+@pytest.mark.parametrize("threshold, confidence, enabled, expected", [
+    (0.80, 0.79, True, "NONE"),
+    (0.80, 0.80, True, "EMERGENCY_STOP"),
+    (0.95, 0.92, True, "NONE"),
+    (0.80, 0.95, False, "NONE"),
+    (None, 0.95, True, "NONE"),
+])
+def test_worker_applies_mapping_confidence(threshold, confidence, enabled, expected):
+    import threading
+    from unittest.mock import MagicMock, patch
+    from android.main import AsyncVisionWorker
+    from android.actions.action_dispatcher import ActionDispatcher
+    from android.models.gesture_models import HandFrameData, GestureMappingItem
+
+    # Run the actual worker loop once without a camera, detector, or OS input.
+    worker = AsyncVisionWorker.__new__(AsyncVisionWorker)
+    worker.camera = MagicMock()
+    worker.camera.read_frame.return_value = (True, object())
+    worker.camera.get_fps.return_value = 30.0
+    worker.detector = MagicMock()
+    worker.detector.detect_hands.return_value = HandFrameData(
+        hand_detected=True, landmarks=create_hand_skeleton(index_extended=False)
+    )
+    worker.smoother = MagicMock()
+    worker.classifier = MagicMock()
+    worker.classifier.classify.return_value = (GestureType.FIST, confidence, HandFeatures())
+    worker.state_machine = MagicMock(wraps=GestureStateMachine())
+    with patch.object(ActionDispatcher, "_init_executors"):
+        worker.dispatcher = ActionDispatcher()
+    worker.dispatcher.set_mappings({} if threshold is None else {
+        "FIST": GestureMappingItem(gesture="FIST", action="EMERGENCY_STOP",
+                                   confidence_threshold=threshold, enabled=enabled)
+    })
+    worker._lock = threading.Lock()
+    worker._running = True
+    worker._frame_count = 0
+    worker.debug_latency = False
+    with patch("android.main.time.sleep", side_effect=lambda _: setattr(worker, "_running", False)):
+        worker._worker_loop()
+    assert worker.state_machine.process_frame.call_args.kwargs["min_confidence"] == (
+        threshold if threshold is not None else 0.60
+    )
+    assert worker.latest_result.action == expected
+    assert worker.dispatcher.emergency_stopped == (expected == "EMERGENCY_STOP")
+
+
+@pytest.mark.parametrize("rotation", [0.0, 0.5, 1.0])
+def test_geometry_rejects_partly_curled_middle_under_rotation(rotation):
+    import math
+    hand = create_hand_skeleton()
+    # Old wrist ratio > 1.08, but sharply bent at PIP: never a second finger.
+    hand[12] = LandmarkPoint(x=0.64, y=0.44, z=0.0)
+    for lm in hand:
+        y, z = lm.y - 0.8, lm.z
+        lm.y = 0.8 + y * math.cos(rotation) - z * math.sin(rotation)
+        lm.z = y * math.sin(rotation) + z * math.cos(rotation)
+    features = extract_hand_features(hand)
+    assert features.index_extended
+    assert not features.middle_extended
+    assert not features.is_two_finger_touchpad
+
+
+def test_dip_hook_is_not_extended():
+    hand = create_hand_skeleton()
+    hand[8] = LandmarkPoint(x=0.45, y=0.43, z=0.0)
+    assert not extract_hand_features(hand).index_extended
+
+
+def test_relaxed_hand_is_not_fist_or_pinch():
+    hand = create_hand_skeleton(index_extended=False, thumb_pos="extended")
+    for tip, pip in ((8, 6), (12, 10), (16, 14), (20, 18)):
+        hand[tip] = LandmarkPoint(x=hand[pip].x + 0.06, y=hand[pip].y - 0.02, z=0.0)
+    gesture, _, features = GestureClassifier().classify(hand)
+    assert not features.is_fist
+    assert gesture == GestureType.NONE
+
+
+def test_compact_fist_wins_over_incidental_pinch_contact():
+    hand = create_hand_skeleton(index_extended=False)
+    gesture, confidence, features = GestureClassifier().classify(hand)
+    assert features.pinch_distance_norm < 0.45
+    assert gesture == GestureType.FIST
+    assert confidence >= 0.80
+
+
+def test_two_finger_confirmation_resets_on_noise_and_hand_loss():
+    classifier = GestureClassifier()
+    pointing = create_hand_skeleton()
+    touchpad = create_hand_skeleton(middle_extended=True, two_finger_close=True)
+    for _ in range(5):
+        assert classifier.classify(pointing)[0] == GestureType.INDEX_POINT
+        assert classifier.classify(touchpad)[0] == GestureType.NONE
+    classifier.classify([])
+    for _ in range(2):
+        assert classifier.classify(touchpad)[0] == GestureType.NONE
+    assert classifier.classify(touchpad)[0] == GestureType.TWO_FINGER_TOUCHPAD
+    assert classifier.classify(pointing)[0] == GestureType.INDEX_POINT
+
+
+@pytest.mark.parametrize("dx, dy, expected", [
+    (0.03, 0.0, GestureType.TWO_FINGER_TOUCHPAD),
+    (0.0, -0.03, GestureType.TWO_FINGER_SCROLL),
+    (0.0, 0.03, GestureType.TWO_FINGER_SCROLL),
+])
+def test_confirmed_touchpad_and_scroll_still_work(dx, dy, expected):
+    classifier = GestureClassifier()
+    for _ in range(3):
+        classifier.classify(create_hand_skeleton(middle_extended=True, two_finger_close=True))
+    hand = create_hand_skeleton(middle_extended=True, two_finger_close=True)
+    hand = [LandmarkPoint(x=p.x + dx, y=p.y + dy, z=p.z) for p in hand]
+    assert classifier.classify(hand)[0] == expected
+
+
+def test_pinch_onset_from_pointer_is_not_zoom():
+    classifier = GestureClassifier()
+    classifier.classify(create_hand_skeleton())
+    assert classifier.classify(create_hand_skeleton(pinch=True))[0] == GestureType.PINCH
+
+
+class TwoFingerSequence:
+    """Deterministic camera-free frames through the real gesture pipeline."""
+
+    def __init__(self, monkeypatch, fps=30, smooth=False):
+        from unittest.mock import MagicMock, patch
+        from android.actions.action_dispatcher import ActionDispatcher
+        from android.vision.landmark_smoother import LandmarkSmoother
+        self.now = 100.0
+        self.dt = 1.0 / fps
+        monkeypatch.setattr("android.gestures.gesture_classifier.time.monotonic", lambda: self.now)
+        monkeypatch.setattr("android.gestures.state_machine.time.time", lambda: self.now)
+        self.classifier = GestureClassifier()
+        self.smoother = LandmarkSmoother() if smooth else None
+        self.machine = GestureStateMachine()
+        with patch.object(ActionDispatcher, "_init_executors"):
+            self.dispatcher = ActionDispatcher()
+        self.executor = MagicMock()
+        self.dispatcher._desktop_executor = self.executor
+        self.gestures = []
+        self.actions = []
+
+    def frame(self, depth=0.0, middle_depth=None, dx=0.0, dy=0.0, whole_hand_z=0.0, hand_lost=False):
+        hand = create_hand_skeleton(middle_extended=True, two_finger_close=True)
+        for base, z in ((5, depth), (9, depth if middle_depth is None else middle_depth)):
+            for offset in (1, 2, 3):
+                hand[base + offset].z = z * offset / 3.0
+        hand = [LandmarkPoint(x=p.x + dx, y=p.y + dy, z=p.z + whole_hand_z) for p in hand]
+        if hand_lost:
+            hand = []
+        if self.smoother:
+            hand = self.smoother.smooth(hand)
+        gesture, confidence, features = self.classifier.classify(hand)
+        mapping = self.dispatcher.get_mapping_item(gesture)
+        result = self.machine.process_frame(
+            bool(hand), gesture, confidence, features,
+            self.dispatcher.get_mapped_action_name(gesture),
+            mapping.confidence_threshold if mapping else 0.60
+        )
+        self.dispatcher.dispatch(result)
+        self.gestures.append(gesture)
+        self.actions.append(result.action)
+        self.now += self.dt
+        return gesture
+
+    def rest(self, seconds=0.35, **kwargs):
+        import math
+        for _ in range(math.ceil(seconds / self.dt)):
+            self.frame(**kwargs)
+
+
+@pytest.mark.parametrize("fps", [15, 30, 60])
+@pytest.mark.parametrize("smooth", [False, True])
+def test_two_finger_tap_reaches_executor_once_on_release(monkeypatch, fps, smooth):
+    sequence = TwoFingerSequence(monkeypatch, fps, smooth)
+    sequence.rest()
+    sequence.rest(0.08, depth=-0.06)
+    assert GestureType.TWO_FINGER_TAP not in sequence.gestures  # Not on press.
+    sequence.rest()
+    assert sequence.gestures.count(GestureType.TWO_FINGER_TAP) == 1
+    assert sequence.actions.count("SECONDARY_TAP") == 1
+    right_clicks = [call for call in sequence.executor.execute.call_args_list
+                    if call.kwargs["action"] == SafeActionType.SECONDARY_TAP]
+    assert len(right_clicks) == 1
+    sequence.rest(0.5)
+    sequence.rest(0.08, depth=-0.06)
+    sequence.rest()
+    assert sequence.actions.count("SECONDARY_TAP") == 2
+
+
+@pytest.mark.parametrize("case", ["stationary", "one_tip", "unarmed", "slow_drift", "long_press", "lost", "scroll", "whole_hand"])
+def test_two_finger_tap_rejects_non_taps(monkeypatch, case):
+    sequence = TwoFingerSequence(monkeypatch)
+    if case != "unarmed":
+        sequence.rest()
+    if case == "stationary":
+        sequence.rest(1.0)
+    elif case == "one_tip":
+        sequence.frame(depth=-0.06, middle_depth=0.0)
+    elif case == "unarmed":
+        sequence.frame(depth=-0.06)
+    elif case == "slow_drift":
+        for step in range(1, 13):
+            sequence.frame(depth=-0.005 * step)
+    elif case == "long_press":
+        sequence.rest(0.5, depth=-0.06)
+    elif case == "lost":
+        sequence.frame(depth=-0.06)
+        sequence.frame(hand_lost=True)
+    elif case == "scroll":
+        sequence.frame(depth=-0.06, dy=-0.04)
+        assert sequence.gestures[-1] == GestureType.TWO_FINGER_SCROLL
+    elif case == "whole_hand":
+        sequence.frame(whole_hand_z=-0.06)
+    sequence.rest()
+    assert GestureType.TWO_FINGER_TAP not in sequence.gestures
+    assert "SECONDARY_TAP" not in sequence.actions
+
+
+def test_scroll_then_rest_allows_new_two_finger_tap(monkeypatch):
+    sequence = TwoFingerSequence(monkeypatch)
+    sequence.rest()
+    sequence.frame(dy=-0.04)
+    assert sequence.gestures[-1] == GestureType.TWO_FINGER_SCROLL
+    sequence.rest(dy=-0.04)
+    sequence.rest(0.08, depth=-0.06, dy=-0.04)
+    sequence.rest(dy=-0.04)
+    assert sequence.actions.count("SECONDARY_TAP") == 1

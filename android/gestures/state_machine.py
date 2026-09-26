@@ -19,10 +19,15 @@ class GestureStateMachine:
     def __init__(
         self,
         default_debounce_ms: int = 400,
-        pinch_hold_ms: int = 60
+        pinch_hold_ms: int = 60,
+        palm_hold_ms: int = 150
     ):
         self.default_debounce_ms = default_debounce_ms
         self.pinch_hold_ms = pinch_hold_ms
+        self.palm_hold_ms = palm_hold_ms
+        self._pause_fired = False
+        self._pause_hold_start: Optional[float] = None
+        self._pause_release_frames = 0
 
         self.current_state: GestureStateEnum = GestureStateEnum.IDLE
         self.active_gesture: GestureType = GestureType.NONE
@@ -90,8 +95,19 @@ class GestureStateMachine:
                 self.active_gesture = GestureType.NONE
                 self.gesture_start_timestamp = 0.0
 
+        # Require release before a held palm may toggle pause again. A single
+        # classification dropout must not unlatch an already-fired palm.
+        if detected_gesture != GestureType.OPEN_PALM:
+            self._pause_hold_start = None
+            self._pause_release_frames += 1
+            if self._pause_release_frames >= 3:
+                self._pause_fired = False
+        else:
+            self._pause_release_frames = 0
+
         # Check confidence floor
         if confidence < min_confidence or detected_gesture == GestureType.NONE:
+            self._pause_hold_start = None
             self.current_state = GestureStateEnum.TRACKING
             self.active_gesture = GestureType.NONE
             return GestureResult(
@@ -110,7 +126,6 @@ class GestureStateMachine:
         # =========================================================================
         if detected_gesture == GestureType.TWO_FINGER_TOUCHPAD:
             self.current_state = GestureStateEnum.ACTION_TRIGGERED if mapped_action != "NONE" else GestureStateEnum.TRACKING
-            self.last_action_timestamp = now
             self.is_two_finger_scrolling = False
             if mapped_action == "NONE":
                 return GestureResult(
@@ -136,7 +151,6 @@ class GestureStateMachine:
 
         if detected_gesture == GestureType.TWO_FINGER_SCROLL:
             self.current_state = GestureStateEnum.ACTION_TRIGGERED if mapped_action != "NONE" else GestureStateEnum.TRACKING
-            self.last_action_timestamp = now
             self.is_two_finger_scrolling = True
             if mapped_action == "NONE":
                 return GestureResult(
@@ -166,7 +180,6 @@ class GestureStateMachine:
 
         if detected_gesture == GestureType.INDEX_POINT or mapped_action == SafeActionType.POINTER_MOVE.value:
             self.current_state = GestureStateEnum.ACTION_TRIGGERED if mapped_action != "NONE" else GestureStateEnum.TRACKING
-            self.last_action_timestamp = now
             self.is_two_finger_scrolling = False
             if mapped_action == "NONE":
                 return GestureResult(
@@ -194,7 +207,6 @@ class GestureStateMachine:
         # =========================================================================
         if detected_gesture in (GestureType.PINCH_IN, GestureType.PINCH_OUT):
             self.current_state = GestureStateEnum.ACTION_TRIGGERED if mapped_action != "NONE" else GestureStateEnum.TRACKING
-            self.last_action_timestamp = now
             if mapped_action == "NONE":
                 return GestureResult(
                     gesture=detected_gesture.value,
@@ -232,7 +244,22 @@ class GestureStateMachine:
                 pointer_coords=features.pointer_pos if features else None
             )
 
-        if time_since_last_action_ms < cooldown_ms:
+        if detected_gesture == GestureType.OPEN_PALM and mapped_action == SafeActionType.PAUSE_GESTURES.value:
+            if self._pause_fired:
+                self.current_state = (GestureStateEnum.COOLDOWN if time_since_last_action_ms < cooldown_ms
+                                      else GestureStateEnum.TRACKING)
+                return GestureResult(gesture=detected_gesture.value, confidence=confidence,
+                                     action="NONE", state=self.current_state)
+            if self._pause_hold_start is None:
+                self._pause_hold_start = now
+            if (now - self._pause_hold_start) * 1000.0 < self.palm_hold_ms:
+                self.current_state = GestureStateEnum.GESTURE_DETECTED
+                return GestureResult(gesture=detected_gesture.value, confidence=confidence,
+                                     action="NONE", state=self.current_state)
+
+        # Continuous movement never consumes the discrete cooldown; a safety
+        # stop must also be able to interrupt any preceding discrete action.
+        if time_since_last_action_ms < cooldown_ms and mapped_action != SafeActionType.EMERGENCY_STOP.value:
             self.current_state = GestureStateEnum.COOLDOWN
             return GestureResult(
                 gesture=detected_gesture.value,
@@ -294,6 +321,8 @@ class GestureStateMachine:
         self.is_two_finger_scrolling = False
         if detected_gesture == GestureType.PINCH:
             self.pinch_fired = True
+        if detected_gesture == GestureType.OPEN_PALM and mapped_action == SafeActionType.PAUSE_GESTURES.value:
+            self._pause_fired = True
 
         return GestureResult(
             gesture=detected_gesture.value,
@@ -309,5 +338,8 @@ class GestureStateMachine:
         self.active_gesture = GestureType.NONE
         self.last_action_timestamp = 0.0
         self.gesture_start_timestamp = 0.0
+        self._pause_fired = False
+        self._pause_hold_start = None
+        self._pause_release_frames = 0
         self.is_two_finger_scrolling = False
         self.pinch_fired = False

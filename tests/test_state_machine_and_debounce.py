@@ -24,7 +24,7 @@ def test_state_machine_idle_transition():
 
 def test_state_machine_debounce_cooldown():
     """Verify that discrete actions enter cooldown and prevent repeated firings."""
-    sm = GestureStateMachine(default_debounce_ms=400)
+    sm = GestureStateMachine(default_debounce_ms=400, palm_hold_ms=0)
     features = HandFeatures(extended_count=5)
 
     # Frame 1: Trigger OPEN_PALM
@@ -168,3 +168,84 @@ def test_disabled_mapping_disables_continuous_gestures_regression():
     assert res_pinch_in.action == "NONE"
 
 
+
+
+@pytest.mark.parametrize("gesture, action", [
+    (GestureType.AIR_TAP, SafeActionType.TAP),
+    (GestureType.TWO_FINGER_TAP, SafeActionType.SECONDARY_TAP),
+    (GestureType.THUMBS_UP, SafeActionType.CONFIRM),
+    (GestureType.THUMBS_DOWN, SafeActionType.REJECT),
+    (GestureType.SWIPE_LEFT, SafeActionType.BACK),
+    (GestureType.FIST, SafeActionType.EMERGENCY_STOP),
+])
+def test_pointer_updates_do_not_starve_discrete_actions(monkeypatch, gesture, action):
+    now = [100.0]
+    monkeypatch.setattr("android.gestures.state_machine.time.time", lambda: now[0])
+    sm = GestureStateMachine()
+    for _ in range(10):
+        sm.process_frame(True, GestureType.INDEX_POINT, 0.95, HandFeatures(), "POINTER_MOVE")
+        now[0] += 0.016
+    result = sm.process_frame(True, gesture, 0.95, HandFeatures(), action.value)
+    assert result.action == action.value
+    # Movement must not reset the previous discrete action's cooldown either.
+    sm.process_frame(True, GestureType.INDEX_POINT, 0.95, HandFeatures(), "POINTER_MOVE")
+    result = sm.process_frame(True, gesture, 0.95, HandFeatures(), action.value)
+    if action != SafeActionType.EMERGENCY_STOP:
+        assert result.action == "NONE"
+
+
+def test_pointer_to_pinch_only_waits_for_hold(monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr("android.gestures.state_machine.time.time", lambda: now[0])
+    sm = GestureStateMachine()
+    sm.process_frame(True, GestureType.INDEX_POINT, 0.95, HandFeatures(), "POINTER_MOVE")
+    assert sm.process_frame(True, GestureType.PINCH, 0.95, HandFeatures(), "TAP").action == "NONE"
+    now[0] += 0.08
+    assert sm.process_frame(True, GestureType.PINCH, 0.95, HandFeatures(), "TAP").action == "TAP"
+
+
+def test_palm_hold_latches_until_deliberate_release(monkeypatch):
+    from unittest.mock import patch
+    from android.actions.action_dispatcher import ActionDispatcher
+
+    now = [100.0]
+    monkeypatch.setattr("android.gestures.state_machine.time.time", lambda: now[0])
+    sm = GestureStateMachine()
+    with patch.object(ActionDispatcher, "_init_executors"):
+        dispatcher = ActionDispatcher()
+
+    def palm():
+        result = sm.process_frame(True, GestureType.OPEN_PALM, 0.95, HandFeatures(), "PAUSE_GESTURES")
+        dispatcher.dispatch(result)
+        return result
+
+    assert palm().action == "NONE"
+    now[0] += 0.16
+    assert palm().action == "PAUSE_GESTURES"
+    assert dispatcher.gestures_paused
+    for _ in range(5):
+        now[0] += 1.0
+        assert palm().action == "NONE"
+    sm.process_frame(True, GestureType.NONE, 0.0, None)
+    assert palm().action == "NONE"  # One noisy frame cannot rearm.
+    for _ in range(3):
+        sm.process_frame(True, GestureType.INDEX_POINT, 0.95, HandFeatures(), "POINTER_MOVE")
+    assert palm().action == "NONE"
+    now[0] += 0.16
+    assert palm().action == "PAUSE_GESTURES"
+    assert not dispatcher.gestures_paused
+
+
+def test_emergency_stop_interrupts_discrete_cooldown():
+    sm = GestureStateMachine()
+    sm.process_frame(True, GestureType.THUMBS_UP, 0.95, HandFeatures(), "CONFIRM")
+    result = sm.process_frame(True, GestureType.FIST, 0.95, HandFeatures(), "EMERGENCY_STOP", 0.80)
+    assert result.action == "EMERGENCY_STOP"
+
+
+def test_tap_is_blocked_during_scroll_but_recovers_after_rest():
+    sm = GestureStateMachine()
+    sm.process_frame(True, GestureType.TWO_FINGER_SCROLL, 0.95, HandFeatures(), "SCROLL_UP")
+    assert sm.process_frame(True, GestureType.TWO_FINGER_TAP, 0.95, HandFeatures(), "SECONDARY_TAP").action == "NONE"
+    sm.process_frame(True, GestureType.TWO_FINGER_TOUCHPAD, 0.95, HandFeatures(), "POINTER_MOVE")
+    assert sm.process_frame(True, GestureType.TWO_FINGER_TAP, 0.95, HandFeatures(), "SECONDARY_TAP").action == "SECONDARY_TAP"

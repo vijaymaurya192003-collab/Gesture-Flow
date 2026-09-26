@@ -43,6 +43,9 @@ class HandFeatures:
     # Extended finger count
     extended_count: int = 0
 
+    # A compact curl is required for safety; not-extended alone is insufficient.
+    is_fist: bool = False
+
     # Thumbs orientation
     is_thumbs_up: bool = False
     is_thumbs_down: bool = False
@@ -67,6 +70,23 @@ def _distance_2d(p1: LandmarkPoint, p2: LandmarkPoint) -> float:
 def _distance_3d(p1: LandmarkPoint, p2: LandmarkPoint) -> float:
     """Euclidean distance in 3D normalized space."""
     return float(np.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2))
+
+
+def _joint_angle(a: LandmarkPoint, joint: LandmarkPoint, b: LandmarkPoint) -> float:
+    """Interior 3D angle: opposing rays at a straight joint give 180 degrees."""
+    u = np.array([a.x - joint.x, a.y - joint.y, a.z - joint.z])
+    v = np.array([b.x - joint.x, b.y - joint.y, b.z - joint.z])
+    norm = np.linalg.norm(u) * np.linalg.norm(v)
+    if norm < 1e-8:
+        return 0.0  # Degenerate landmarks must not count as extended.
+    return float(np.degrees(np.arccos(np.clip(np.dot(u, v) / norm, -1.0, 1.0))))
+
+
+def _finger_geometry(wrist, mcp, pip, dip, tip) -> Tuple[float, float]:
+    """Return wrist-distance ratio and the interior PIP angle."""
+    ratio = _distance_3d(wrist, tip) / max(1e-8, _distance_3d(wrist, pip))
+    angle = _joint_angle(mcp, pip, tip)
+    return ratio, angle
 
 
 def extract_hand_features(
@@ -111,11 +131,18 @@ def extract_hand_features(
     # Hand Scale Reference: distance from Wrist (0) to Middle MCP (9)
     hand_scale = max(0.05, _distance_2d(wrist, middle_mcp))
 
-    # 1. Finger extension determination (distance from wrist to tip vs PIP)
-    index_extended = _distance_2d(wrist, index_tip) > _distance_2d(wrist, index_pip) * 1.05
-    middle_extended = _distance_2d(wrist, middle_tip) > _distance_2d(wrist, middle_pip) * 1.08
-    ring_extended = _distance_2d(wrist, ring_tip) > _distance_2d(wrist, ring_pip) * 1.08
-    pinky_extended = _distance_2d(wrist, pinky_tip) > _distance_2d(wrist, pinky_pip) * 1.08
+    # 1. Require both reach and straight joints, in 3D for tilted hands.
+    fingers = [
+        (index_mcp, index_pip, index_dip, index_tip),
+        (middle_mcp, middle_pip, middle_dip, middle_tip),
+        (ring_mcp, ring_pip, ring_dip, ring_tip),
+        (pinky_mcp, pinky_pip, pinky_dip, pinky_tip),
+    ]
+    geometry = [_finger_geometry(wrist, *finger) for finger in fingers]
+    index_extended, middle_extended, ring_extended, pinky_extended = [
+        ratio > margin and angle > 150.0 and _joint_angle(pip, dip, tip) > 140.0
+        for (ratio, angle), margin, (_, pip, dip, tip) in zip(geometry, (1.15, 1.18, 1.18, 1.18), fingers)
+    ]
 
     # Thumb extension: check distance from thumb tip to pinky MCP
     thumb_extended = _distance_2d(pinky_mcp, thumb_tip) > _distance_2d(pinky_mcp, thumb_ip) * 1.15
@@ -151,7 +178,11 @@ def extract_hand_features(
         extended_count += 1
 
     # 5. Thumbs Up / Down Geometric Verification
-    other_fingers_curled = not index_extended and not middle_extended and not ring_extended and not pinky_extended
+    other_fingers_curled = all(
+        ratio < 1.0 and angle < 100.0 and _distance_3d(mcp, pip) > 1e-5
+        and _distance_3d(pip, tip) > 1e-5
+        for (ratio, angle), (mcp, pip, dip, tip) in zip(geometry, fingers)
+    )
     is_thumbs_up = False
     is_thumbs_down = False
 
@@ -182,15 +213,17 @@ def extract_hand_features(
             float(two_finger_center[1] - prev_two_finger_center[1])
         )
 
-    # Touchpad mode is active when Index and Middle are extended, Ring and Pinky are curled,
-    # and the two fingers are held closely together (separation < 0.55)
+    # Touchpad requires deliberately straight, close index + middle fingers.
+    # Keep a gap to the peace-sign threshold instead of mislabelling borderline poses.
     is_two_finger_touchpad = False
     is_peace_sign = False
     if index_extended and middle_extended and not ring_extended and not pinky_extended:
-        if two_finger_separation_norm < 0.55:
-            is_two_finger_touchpad = True
-        else:
-            is_peace_sign = True
+        deliberate_extension = all(ratio > 1.25 and angle > 160.0 for ratio, angle in geometry[:2])
+        is_two_finger_touchpad = deliberate_extension and two_finger_separation_norm < 0.45
+        is_peace_sign = two_finger_separation_norm >= 0.55
+
+    # A relaxed or partly curled hand must not lock all laptop input.
+    is_fist = not thumb_extended and other_fingers_curled
 
     # 7. Air Tap (Z-Axis Forward Motion Pulse)
     is_air_tap = False
@@ -217,6 +250,7 @@ def extract_hand_features(
         pointer_pos=(float(index_tip.x), float(index_tip.y)),
         velocity=(vx, vy),
         extended_count=extended_count,
+        is_fist=is_fist,
         is_thumbs_up=is_thumbs_up,
         is_thumbs_down=is_thumbs_down,
         two_finger_center=two_finger_center,

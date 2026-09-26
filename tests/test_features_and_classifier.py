@@ -99,6 +99,11 @@ def test_classify_two_fingers():
     """Test classifying two fingers (peace / V-sign) gesture."""
     classifier = GestureClassifier()
     peace_hand = create_synthetic_hand(index_extended=True, middle_extended=True, ring_extended=False, pinky_extended=False, thumb_extended=False)
+    # Spread the full finger chains, not just bend the tips sideways.
+    peace_hand[6] = LandmarkPoint(x=0.427, y=0.50, z=0.0)
+    peace_hand[7] = LandmarkPoint(x=0.403, y=0.40, z=0.0)
+    peace_hand[10] = LandmarkPoint(x=0.54, y=0.48, z=0.0)
+    peace_hand[11] = LandmarkPoint(x=0.58, y=0.38, z=0.0)
     # Spread into wide V-sign for peace gesture
     peace_hand[8] = LandmarkPoint(x=0.38, y=0.30, z=0.0)
     peace_hand[12] = LandmarkPoint(x=0.62, y=0.28, z=0.0)
