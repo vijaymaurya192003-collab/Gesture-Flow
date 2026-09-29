@@ -77,12 +77,20 @@ class OpenCVCamera(BaseFrameSource):
 
                         # Test reading a single frame
                         ret, test_frame = cap.read()
+                        if not ret or test_frame is None:
+                            # If MJPG property override prevented frame acquisition, retry clean
+                            cap.release()
+                            cap = cv2.VideoCapture(idx, backend) if backend != 0 else cv2.VideoCapture(idx)
+                            if cap is not None and cap.isOpened():
+                                ret, test_frame = cap.read()
+
                         if ret and test_frame is not None:
                             self._cap = cap
                             print(f"[OpenCVCamera] Connected to camera index {idx} with backend {backend}")
                             break
                         else:
-                            cap.release()
+                            if cap is not None:
+                                cap.release()
                 except Exception:
                     pass
 

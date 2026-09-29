@@ -88,14 +88,28 @@ class GestureClassifier:
 
         detected_gesture = GestureType.NONE
 
+        all_four_fingers_curled = (
+            not features.index_extended
+            and not features.middle_extended
+            and not features.ring_extended
+            and not features.pinky_extended
+        )
+
+        # Resolve effective pinch threshold regardless of whether threshold is given in
+        # frame-normalized units (<0.15, e.g. 0.055) or hand-scale normalized units (>=0.15, e.g. 0.35-0.45)
+        effective_pinch_thresh = (
+            self.pinch_threshold / max(0.05, features.hand_scale)
+            if self.pinch_threshold < 0.15
+            else self.pinch_threshold
+        )
+
         # =========================================================================
         # PRIORITY 1: PINCH (Pinch Zoom & Tap)
-        # Requires the index finger to be participating (extended): a thumbs-up
-        # also puts the thumb tip near the folded index tip and must not pinch.
+        # Requires index to not be locked in a closed fist posture and not thumbs-up
         # =========================================================================
-        if features.index_extended and features.pinch_distance_norm < self.pinch_threshold:
-            # Check for continuous proportional zoom: expanding vs contracting distance
-            if abs(features.pinch_delta) > 0.012:
+        if not all_four_fingers_curled and not features.is_thumbs_up and features.pinch_distance_norm < effective_pinch_thresh:
+            # Continuous proportional zoom: expanding vs contracting distance
+            if abs(features.pinch_delta) > 0.015:
                 if features.pinch_delta > 0:
                     detected_gesture = GestureType.PINCH_OUT  # Expanding -> Zoom In
                 else:
@@ -130,14 +144,14 @@ class GestureClassifier:
             detected_gesture = GestureType.AIR_TAP
 
         # =========================================================================
-        # PRIORITY 4: ONE-FINGER SWIPE (High Velocity Directional Motion)
-        # Swipes require an open hand (all four fingers extended): without this
-        # gate, fast index-point / pinch / touchpad motion is misread as swipe
-        # and fires BACK / HOME system actions.
+        # PRIORITY 4: MULTI-FINGER SWIPE (High Velocity Directional Motion)
+        # Only when multiple fingers are open; never hijack single-finger pointer aiming
         # =========================================================================
-        elif (features.index_extended and features.middle_extended
-                and features.ring_extended and features.pinky_extended
-                and np.sqrt(features.velocity[0] ** 2 + features.velocity[1] ** 2) > self.swipe_velocity_threshold):
+        elif (
+            features.extended_count >= 2
+            and not (features.index_extended and not features.middle_extended and not features.ring_extended and not features.pinky_extended)
+            and np.sqrt(features.velocity[0] ** 2 + features.velocity[1] ** 2) > self.swipe_velocity_threshold
+        ):
             vx, vy = features.velocity
             if abs(vx) > abs(vy):
                 detected_gesture = GestureType.SWIPE_RIGHT if vx > 0 else GestureType.SWIPE_LEFT
@@ -166,7 +180,7 @@ class GestureClassifier:
         elif features.is_peace_sign:
             detected_gesture = GestureType.TWO_FINGERS
 
-        elif features.extended_count == 0 or (features.extended_count == 1 and features.thumb_extended):
+        elif all_four_fingers_curled or features.extended_count == 0 or (features.extended_count == 1 and features.thumb_extended):
             detected_gesture = GestureType.FIST
 
         elif features.extended_count >= 4:
@@ -176,7 +190,7 @@ class GestureClassifier:
             detected_gesture = GestureType.NONE
 
         self._last_detected_gesture = detected_gesture
-        conf = ConfidenceEngine.calculate_confidence(detected_gesture, features, self.pinch_threshold)
+        conf = ConfidenceEngine.calculate_confidence(detected_gesture, features, effective_pinch_thresh)
         return detected_gesture, conf, features
 
     def reset(self) -> None:

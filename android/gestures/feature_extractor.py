@@ -251,9 +251,10 @@ def extract_hand_features(
     if prev_index_z is not None:
         # Negative z in MediaPipe is closer to camera (forward tap)
         index_z_velocity = float(index_tip.z - prev_index_z)
-        if index_extended and not ring_extended and not pinky_extended and not middle_extended:
-            # Significant forward motion towards camera
-            if index_z_velocity < -0.025:
+        if index_extended and not middle_extended and not ring_extended and not pinky_extended:
+            # Significant forward motion pulse towards camera with restrained lateral motion
+            lateral_drift = float(np.hypot(vx, vy))
+            if index_z_velocity < -0.045 and lateral_drift < 0.04:
                 is_air_tap = True
 
     # 8. Two-Finger Tap (Z-Axis Forward Motion Pulse while in Two-Finger Posture)

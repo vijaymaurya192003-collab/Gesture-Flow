@@ -34,6 +34,15 @@ class DesktopActionExecutor:
         """Initialize desktop screen resolution and automation libraries safely."""
         if self._has_windows_api:
             try:
+                # Enable Per-Monitor DPI awareness on Windows to prevent coordinate mapping and clipping bugs
+                try:
+                    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+                except Exception:
+                    try:
+                        ctypes.windll.user32.SetProcessDPIAware()
+                    except Exception:
+                        pass
+
                 # Get true system metrics on Windows
                 self._screen_w = ctypes.windll.user32.GetSystemMetrics(0)
                 self._screen_h = ctypes.windll.user32.GetSystemMetrics(1)
@@ -76,16 +85,36 @@ class DesktopActionExecutor:
                     if abs(dy) < self._deadzone:
                         dy = 0.0
 
-                    # Invert horizontal delta if mirrored camera feed
                     target_x = int(self._last_cursor_x + (dx * self._screen_w * self._touchpad_sensitivity))
                     target_y = int(self._last_cursor_y + (dy * self._screen_h * self._touchpad_sensitivity))
                 else:
-                    # Standard Single-Finger Absolute Tracking Box
-                    margin = 0.12
-                    cx = max(0.0, min(1.0, (norm_x - margin) / (1.0 - 2 * margin)))
-                    cy = max(0.0, min(1.0, (norm_y - margin) / (1.0 - 2 * margin)))
-                    target_x = int(cx * self._screen_w)
-                    target_y = int(cy * self._screen_h)
+                    # Standard Single-Finger Absolute Tracking Box with Margins
+                    margin_x = 0.12
+                    margin_y = 0.12
+                    cx = max(0.0, min(1.0, (norm_x - margin_x) / (1.0 - 2 * margin_x)))
+                    cy = max(0.0, min(1.0, (norm_y - margin_y) / (1.0 - 2 * margin_y)))
+                    raw_target_x = int(cx * self._screen_w)
+                    raw_target_y = int(cy * self._screen_h)
+
+                    # Dynamic Exponential Moving Average smoothing
+                    dx_curr = raw_target_x - self._last_cursor_x
+                    dy_curr = raw_target_y - self._last_cursor_y
+                    dist = float(np.hypot(dx_curr, dy_curr))
+
+                    if dist < 3.0:
+                        target_x = self._last_cursor_x
+                        target_y = self._last_cursor_y
+                    elif dist < 35.0:
+                        alpha = 0.45
+                        target_x = int(self._last_cursor_x + alpha * dx_curr)
+                        target_y = int(self._last_cursor_y + alpha * dy_curr)
+                    elif dist < 120.0:
+                        alpha = 0.75
+                        target_x = int(self._last_cursor_x + alpha * dx_curr)
+                        target_y = int(self._last_cursor_y + alpha * dy_curr)
+                    else:
+                        target_x = raw_target_x
+                        target_y = raw_target_y
 
                 # Clamp to screen bounds
                 target_x = max(0, min(self._screen_w - 1, target_x))
@@ -104,6 +133,21 @@ class DesktopActionExecutor:
 
             # 2. CLICK / TAP
             elif action == SafeActionType.TAP:
+                if pointer_coords and not (metadata and metadata.get("touchpad")):
+                    norm_x, norm_y = pointer_coords
+                    margin_x = 0.12
+                    margin_y = 0.12
+                    cx = max(0.0, min(1.0, (norm_x - margin_x) / (1.0 - 2 * margin_x)))
+                    cy = max(0.0, min(1.0, (norm_y - margin_y) / (1.0 - 2 * margin_y)))
+                    target_x = max(0, min(self._screen_w - 1, int(cx * self._screen_w)))
+                    target_y = max(0, min(self._screen_h - 1, int(cy * self._screen_h)))
+                    self._last_cursor_x = target_x
+                    self._last_cursor_y = target_y
+                    if self._has_windows_api:
+                        ctypes.windll.user32.SetCursorPos(target_x, target_y)
+                    elif self._pyautogui:
+                        self._pyautogui.moveTo(target_x, target_y, _pause=False)
+
                 if self._has_windows_api:
                     # MOUSEEVENTF_LEFTDOWN = 0x0002, MOUSEEVENTF_LEFTUP = 0x0004
                     ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
@@ -114,6 +158,21 @@ class DesktopActionExecutor:
 
             # 3. SECONDARY TAP (Context / Right Click)
             elif action == SafeActionType.SECONDARY_TAP:
+                if pointer_coords and not (metadata and metadata.get("touchpad")):
+                    norm_x, norm_y = pointer_coords
+                    margin_x = 0.12
+                    margin_y = 0.12
+                    cx = max(0.0, min(1.0, (norm_x - margin_x) / (1.0 - 2 * margin_x)))
+                    cy = max(0.0, min(1.0, (norm_y - margin_y) / (1.0 - 2 * margin_y)))
+                    target_x = max(0, min(self._screen_w - 1, int(cx * self._screen_w)))
+                    target_y = max(0, min(self._screen_h - 1, int(cy * self._screen_h)))
+                    self._last_cursor_x = target_x
+                    self._last_cursor_y = target_y
+                    if self._has_windows_api:
+                        ctypes.windll.user32.SetCursorPos(target_x, target_y)
+                    elif self._pyautogui:
+                        self._pyautogui.moveTo(target_x, target_y, _pause=False)
+
                 if self._has_windows_api:
                     # MOUSEEVENTF_RIGHTDOWN = 0x0008, MOUSEEVENTF_RIGHTUP = 0x0010
                     ctypes.windll.user32.mouse_event(0x0008, 0, 0, 0, 0)
@@ -141,15 +200,19 @@ class DesktopActionExecutor:
             elif action in (SafeActionType.ZOOM_IN, SafeActionType.ZOOM_OUT):
                 wheel_delta = 120 if action == SafeActionType.ZOOM_IN else -120
                 if self._has_windows_api:
-                    # Simulate Ctrl + Mouse Wheel for proportional zoom
+                    # Simulate Ctrl + Mouse Wheel for proportional zoom with guaranteed release
                     VK_CONTROL = 0x11
-                    ctypes.windll.user32.keybd_event(VK_CONTROL, 0, 0, 0)
-                    ctypes.windll.user32.mouse_event(0x0800, 0, 0, wheel_delta, 0)
-                    ctypes.windll.user32.keybd_event(VK_CONTROL, 0, 2, 0)
+                    try:
+                        ctypes.windll.user32.keybd_event(VK_CONTROL, 0, 0, 0)
+                        ctypes.windll.user32.mouse_event(0x0800, 0, 0, wheel_delta, 0)
+                    finally:
+                        ctypes.windll.user32.keybd_event(VK_CONTROL, 0, 2, 0)
                 elif self._pyautogui:
-                    self._pyautogui.keyDown('ctrl')
-                    self._pyautogui.scroll(wheel_delta)
-                    self._pyautogui.keyUp('ctrl')
+                    try:
+                        self._pyautogui.keyDown('ctrl')
+                        self._pyautogui.scroll(wheel_delta)
+                    finally:
+                        self._pyautogui.keyUp('ctrl')
                 return True
 
             # 6. CONFIRM (Enter Key) / REJECT (Escape Key)

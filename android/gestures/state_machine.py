@@ -19,10 +19,12 @@ class GestureStateMachine:
     def __init__(
         self,
         default_debounce_ms: int = 400,
-        pinch_hold_ms: int = 60
+        pinch_hold_ms: int = 60,
+        fist_hold_ms: int = 0
     ):
         self.default_debounce_ms = default_debounce_ms
         self.pinch_hold_ms = pinch_hold_ms
+        self.fist_hold_ms = fist_hold_ms
 
         self.current_state: GestureStateEnum = GestureStateEnum.IDLE
         self.active_gesture: GestureType = GestureType.NONE
@@ -257,6 +259,29 @@ class GestureStateMachine:
 
             held_duration_ms = (now - self.gesture_start_timestamp) * 1000.0
             if held_duration_ms < self.pinch_hold_ms:
+                return GestureResult(
+                    gesture=detected_gesture.value,
+                    confidence=confidence,
+                    action="NONE",
+                    state=GestureStateEnum.GESTURE_DETECTED,
+                    pointer_coords=features.pointer_pos if features else None
+                )
+
+        # Hold-time requirement for FIST EMERGENCY STOP (prevents accidental instant lockouts)
+        if detected_gesture == GestureType.FIST and self.fist_hold_ms > 0:
+            if self.active_gesture != GestureType.FIST:
+                self.active_gesture = GestureType.FIST
+                self.gesture_start_timestamp = now
+                return GestureResult(
+                    gesture=detected_gesture.value,
+                    confidence=confidence,
+                    action="NONE",
+                    state=GestureStateEnum.GESTURE_DETECTED,
+                    pointer_coords=features.pointer_pos if features else None
+                )
+
+            held_duration_ms = (now - self.gesture_start_timestamp) * 1000.0
+            if held_duration_ms < self.fist_hold_ms:
                 return GestureResult(
                     gesture=detected_gesture.value,
                     confidence=confidence,

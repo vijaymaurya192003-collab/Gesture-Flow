@@ -46,7 +46,7 @@ class AsyncVisionWorker:
         self.detector = HandDetector()
         self.smoother = LandmarkSmoother()
         self.classifier = GestureClassifier()
-        self.state_machine = GestureStateMachine()
+        self.state_machine = GestureStateMachine(fist_hold_ms=250)
         self.dispatcher = ActionDispatcher()
 
         # Load custom mappings and calibration

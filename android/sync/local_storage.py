@@ -109,10 +109,10 @@ class LocalStorageManager:
         self._seed_default_mappings_if_empty()
 
     def _seed_default_mappings_if_empty(self) -> None:
-        """Seed initial mappings if database was just created."""
-        mappings = self.load_mappings()
-        if not mappings:
-            for g_name, data in DEFAULT_GESTURE_MAPPINGS.items():
+        """Seed initial mappings and ensure all default gestures exist in database."""
+        existing = self.load_mappings()
+        for g_name, data in DEFAULT_GESTURE_MAPPINGS.items():
+            if g_name not in existing:
                 item = GestureMappingItem(
                     gesture=g_name,
                     action=data["action"],

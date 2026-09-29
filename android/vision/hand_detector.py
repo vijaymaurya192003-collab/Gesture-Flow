@@ -112,17 +112,19 @@ class HandDetector:
 
         h, w, _ = frame_bgr.shape
 
-        # Downscale image for fast MediaPipe inference if larger than 360px wide
-        if w > 360:
-            scale = 360.0 / w
-            proc_w = 360
+        # Keep native resolution for standard webcams (<=640px) to maximize landmark fidelity.
+        # For HD/4K feeds (>640px), downscale to 640px with bilinear interpolation to maintain anti-aliased finger edges.
+        if w > 640:
+            scale = 640.0 / w
+            proc_w = 640
             proc_h = int(h * scale)
-            small_frame = cv2.resize(frame_bgr, (proc_w, proc_h), interpolation=cv2.INTER_NEAREST)
+            proc_frame = cv2.resize(frame_bgr, (proc_w, proc_h), interpolation=cv2.INTER_LINEAR)
         else:
-            small_frame = frame_bgr
+            proc_frame = frame_bgr
 
         # MediaPipe requires RGB input
-        frame_rgb = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+        frame_rgb = cv2.cvtColor(proc_frame, cv2.COLOR_BGR2RGB)
+        frame_rgb.flags.writeable = False
 
         if self._hands is not None:
             frame_rgb.flags.writeable = False

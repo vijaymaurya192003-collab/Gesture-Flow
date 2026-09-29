@@ -21,15 +21,25 @@ if not exist "%PROJECT_DIR%main.py" (
 cd /d "%PROJECT_DIR%"
 echo [Info] Working Directory: %CD%
 
-:: 2. Launch with project virtual environment
+:: 2. Launch with project virtual environment or system Python
 if exist "%PROJECT_DIR%.venv\Scripts\python.exe" (
     "%PROJECT_DIR%.venv\Scripts\python.exe" "%PROJECT_DIR%main.py"
 ) else (
-    where uv >nul 2>nul
+    where python >nul 2>&1
     if %ERRORLEVEL% EQU 0 (
-        uv run python main.py
+        python "%PROJECT_DIR%main.py"
     ) else (
-        python main.py
+        where py >nul 2>&1
+        if %ERRORLEVEL% EQU 0 (
+            py "%PROJECT_DIR%main.py"
+        ) else (
+            where uv >nul 2>&1
+            if %ERRORLEVEL% EQU 0 (
+                uv run python main.py
+            ) else (
+                python main.py
+            )
+        )
     )
 )
 
