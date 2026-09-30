@@ -41,6 +41,7 @@ class SafeActionType(str, Enum):
     ZOOM_IN = "ZOOM_IN"
     ZOOM_OUT = "ZOOM_OUT"
     BACK = "BACK"
+    FORWARD = "FORWARD"
     HOME = "HOME"
     RECENTS = "RECENTS"
     CONFIRM = "CONFIRM"
@@ -50,6 +51,7 @@ class SafeActionType(str, Enum):
     MEDIA_PLAY_PAUSE = "MEDIA_PLAY_PAUSE"
     PAUSE_GESTURES = "PAUSE_GESTURES"
     EMERGENCY_STOP = "EMERGENCY_STOP"
+    RESET_STATE = "RESET_STATE"
 
 
 class TouchpadSensitivity(str, Enum):
@@ -182,20 +184,20 @@ DEFAULT_GESTURE_MAPPINGS = {
         "description": "Performs system back navigation"
     },
     GestureType.SWIPE_RIGHT.value: {
-        "action": SafeActionType.HOME.value,
+        "action": SafeActionType.FORWARD.value,
         "sensitivity": 1.0,
         "confidence_threshold": 0.65,
         "cooldown_ms": 500,
         "enabled": True,
-        "description": "Navigates to home screen"
+        "description": "Navigates forward in browser / apps (Alt + Right)"
     },
     GestureType.OPEN_PALM.value: {
-        "action": SafeActionType.PAUSE_GESTURES.value,
+        "action": SafeActionType.NONE.value,
         "sensitivity": 1.0,
         "confidence_threshold": 0.70,
         "cooldown_ms": 700,
         "enabled": True,
-        "description": "Pauses / Resumes gesture tracking"
+        "description": "Continuous open hand tracking"
     },
     GestureType.TWO_FINGERS.value: {
         "action": SafeActionType.MEDIA_PLAY_PAUSE.value,
@@ -222,11 +224,11 @@ DEFAULT_GESTURE_MAPPINGS = {
         "description": "Reject / cancel action"
     },
     GestureType.FIST.value: {
-        "action": SafeActionType.EMERGENCY_STOP.value,
+        "action": SafeActionType.RESET_STATE.value,
         "sensitivity": 1.0,
         "confidence_threshold": 0.80,
-        "cooldown_ms": 800,
+        "cooldown_ms": 300,
         "enabled": True,
-        "description": "Immediate emergency safety lockout"
+        "description": "Instantly resets motion baselines and buffers"
     }
 }

@@ -70,8 +70,20 @@ class ActionRegistry:
         SafeActionType.BACK.value: ActionMetadata(
             name="Navigate Back",
             category="Navigation",
-            description="Triggers system global Back action",
+            description="Triggers system global Back action (Alt + Left)",
             requires_accessibility=True
+        ),
+        SafeActionType.FORWARD.value: ActionMetadata(
+            name="Navigate Forward",
+            category="Navigation",
+            description="Triggers system global Forward action (Alt + Right)",
+            requires_accessibility=True
+        ),
+        SafeActionType.RESET_STATE.value: ActionMetadata(
+            name="Reset State",
+            category="System",
+            description="Instantly resets motion tracking baselines, gesture states, and buffers",
+            requires_accessibility=False
         ),
         SafeActionType.HOME.value: ActionMetadata(
             name="Navigate Home",
