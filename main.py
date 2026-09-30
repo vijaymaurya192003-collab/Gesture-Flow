@@ -110,10 +110,7 @@ if __name__ == "__main__":
             print("[Launcher] Starting Frontend Web Server on http://localhost:3000...")
             webbrowser.open("http://localhost:3000")
             start_frontend_server(3000)
-        elif cmd in ("pipeline", "gesture"):
-            from gesture_control_pipeline import GestureControlPipeline
-            GestureControlPipeline().run_standalone()
-        elif cmd in ("cv", "camera", "app"):
+        elif cmd in ("cv", "camera", "app", "pipeline", "gesture"):
             from android.main import main
             main()
         elif cmd in ("all", "--all", "run"):

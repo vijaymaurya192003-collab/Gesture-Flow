@@ -217,12 +217,20 @@ class DesktopActionExecutor:
 
             # 6. CONFIRM (Enter Key) / REJECT (Escape Key)
             elif action == SafeActionType.CONFIRM:
-                if self._pyautogui:
+                if self._has_windows_api:
+                    VK_RETURN = 0x0D
+                    ctypes.windll.user32.keybd_event(VK_RETURN, 0, 0, 0)
+                    ctypes.windll.user32.keybd_event(VK_RETURN, 0, 2, 0)
+                elif self._pyautogui:
                     self._pyautogui.press('enter')
                 return True
 
             elif action == SafeActionType.REJECT:
-                if self._pyautogui:
+                if self._has_windows_api:
+                    VK_ESCAPE = 0x1B
+                    ctypes.windll.user32.keybd_event(VK_ESCAPE, 0, 0, 0)
+                    ctypes.windll.user32.keybd_event(VK_ESCAPE, 0, 2, 0)
+                elif self._pyautogui:
                     self._pyautogui.press('esc')
                 return True
 

@@ -102,12 +102,12 @@ DEFAULT_GESTURE_MAPPINGS = {
         "description": "Moves pointer / cursor on screen"
     },
     GestureType.AIR_TAP.value: {
-        "action": SafeActionType.TAP.value,
+        "action": SafeActionType.CONFIRM.value,
         "sensitivity": 1.0,
         "confidence_threshold": 0.65,
         "cooldown_ms": 300,
         "enabled": True,
-        "description": "Performs click on element under virtual pointer"
+        "description": "Triggers Enter / Confirm keypress via forward index air tap"
     },
     GestureType.PINCH.value: {
         "action": SafeActionType.TAP.value,
