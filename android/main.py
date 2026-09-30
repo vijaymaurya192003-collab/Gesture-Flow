@@ -46,7 +46,7 @@ class AsyncVisionWorker:
         self.detector = HandDetector()
         self.smoother = LandmarkSmoother()
         self.classifier = GestureClassifier()
-        self.state_machine = GestureStateMachine(fist_hold_ms=0)
+        self.state_machine = GestureStateMachine(fist_hold_ms=250)
         self.dispatcher = ActionDispatcher()
 
         # Load custom mappings and calibration
@@ -217,6 +217,32 @@ def run_desktop_interactive_mode(debug_latency: bool = False, camera_idx: int = 
                 metrics=metrics
             )
 
+            # Emergency Stop Banner if active
+            if vision_worker.dispatcher.emergency_stopped:
+                cv2.rectangle(display_frame, (0, 60), (display_frame.shape[1], 100), (0, 0, 200), -1)
+                cv2.putText(
+                    display_frame,
+                    "EMERGENCY STOP LOCKED - Press [R] to Reset",
+                    (50, 88),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.65,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA
+                )
+            elif vision_worker.dispatcher.gestures_paused:
+                cv2.rectangle(display_frame, (0, 60), (display_frame.shape[1], 100), (0, 140, 255), -1)
+                cv2.putText(
+                    display_frame,
+                    "GESTURES PAUSED - Show OPEN PALM or Press [P] to Resume",
+                    (30, 88),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA
+                )
+
             # Show window
             cv2.imshow(window_name, display_frame)
 
@@ -224,12 +250,16 @@ def run_desktop_interactive_mode(debug_latency: bool = False, camera_idx: int = 
             key = cv2.waitKey(1) & 0xFF
             if key in (27, ord('q'), ord('Q')):
                 break
+            elif key in (ord('p'), ord('P')):
+                vision_worker.dispatcher.dispatch(
+                    vision_worker.state_machine.process_frame(True, GestureType.OPEN_PALM, 0.9, None, SafeActionType.PAUSE_GESTURES.value)
+                )
+            elif key in (ord('e'), ord('E')):
+                vision_worker.dispatcher.dispatch(
+                    vision_worker.state_machine.process_frame(True, GestureType.FIST, 0.95, None, SafeActionType.EMERGENCY_STOP.value)
+                )
             elif key in (ord('r'), ord('R')):
-                vision_worker.state_machine.reset()
-                vision_worker.classifier.reset()
-                vision_worker.smoother.reset()
                 vision_worker.dispatcher.reset_emergency_stop()
-                print("[GestureFlow] Baselines and tracking states reset.")
             elif key in (ord('c'), ord('C')):
                 print("[Calibration] Saving default profile...")
                 calib = storage.load_calibration()

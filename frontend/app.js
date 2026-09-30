@@ -14,25 +14,25 @@
 
 let currentMappings = [
   { gesture: "INDEX_POINT", action: "POINTER_MOVE", sensitivity: 1.2, confidence_threshold: 0.70, cooldown_ms: 20, enabled: true, hardware: "Win32 / Android Pointer" },
-  { gesture: "AIR_TAP", action: "TAP", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 400, enabled: true, hardware: "Android Screen Tap (Accessibility)" },
+  { gesture: "AIR_TAP", action: "CONFIRM", sensitivity: 1.0, confidence_threshold: 0.65, cooldown_ms: 350, enabled: true, hardware: "Enter Key (Hardware Keypress)" },
   { gesture: "PINCH", action: "TAP", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 400, enabled: true, hardware: "Hardware Tap Event" },
   { gesture: "PINCH_IN", action: "ZOOM_OUT", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 150, enabled: true, hardware: "Multi-Touch Pinch Out" },
   { gesture: "PINCH_OUT", action: "ZOOM_IN", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 150, enabled: true, hardware: "Multi-Touch Pinch In" },
   { gesture: "SWIPE_UP", action: "SCROLL_UP", sensitivity: 1.0, confidence_threshold: 0.70, cooldown_ms: 450, enabled: true, hardware: "Android Upward Swipe" },
   { gesture: "SWIPE_DOWN", action: "SCROLL_DOWN", sensitivity: 1.0, confidence_threshold: 0.70, cooldown_ms: 450, enabled: true, hardware: "Android Downward Swipe" },
-  { gesture: "SWIPE_LEFT", action: "BACK", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 550, enabled: true, hardware: "Android Back / Swipe Left" },
-  { gesture: "SWIPE_RIGHT", action: "HOME", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 550, enabled: true, hardware: "Android Home / Swipe Right" },
-  { gesture: "OPEN_PALM", action: "PAUSE_GESTURES", sensitivity: 1.0, confidence_threshold: 0.80, cooldown_ms: 700, enabled: true, hardware: "Local Engine Neutral / Pause" },
+  { gesture: "SWIPE_LEFT", action: "BACK", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 550, enabled: true, hardware: "Alt + Left (Browser Back)" },
+  { gesture: "SWIPE_RIGHT", action: "FORWARD", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 550, enabled: true, hardware: "Alt + Right (Browser Forward)" },
+  { gesture: "OPEN_PALM", action: "NONE", sensitivity: 1.0, confidence_threshold: 0.80, cooldown_ms: 700, enabled: false, hardware: "Continuous Tracking (No Pause)" },
   { gesture: "TWO_FINGERS", action: "MEDIA_PLAY_PAUSE", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 500, enabled: true, hardware: "Media Play/Pause Key" },
   { gesture: "THUMBS_UP", action: "CONFIRM", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 600, enabled: true, hardware: "Confirm Action" },
   { gesture: "THUMBS_DOWN", action: "REJECT", sensitivity: 1.0, confidence_threshold: 0.75, cooldown_ms: 600, enabled: true, hardware: "Reject Action" },
-  { gesture: "FIST", action: "EMERGENCY_STOP", sensitivity: 1.0, confidence_threshold: 0.85, cooldown_ms: 800, enabled: true, hardware: "Safety Lockout" }
+  { gesture: "FIST", action: "RESET_STATE", sensitivity: 1.0, confidence_threshold: 0.85, cooldown_ms: 300, enabled: true, hardware: "Instant Motion Reset" }
 ];
 
 const SAFE_ACTIONS = [
   "POINTER_MOVE", "TAP", "SCROLL_UP", "SCROLL_DOWN", "ZOOM_IN", "ZOOM_OUT",
-  "BACK", "HOME", "RECENTS", "NOTIFICATIONS", "VOLUME_UP", "VOLUME_DOWN",
-  "MEDIA_PLAY_PAUSE", "CONFIRM", "REJECT", "PAUSE_GESTURES", "EMERGENCY_STOP"
+  "BACK", "FORWARD", "RESET_STATE", "HOME", "RECENTS", "NOTIFICATIONS", "VOLUME_UP", "VOLUME_DOWN",
+  "MEDIA_PLAY_PAUSE", "CONFIRM", "REJECT", "EMERGENCY_STOP"
 ];
 
 // Calibration Thresholds
@@ -589,20 +589,21 @@ class FrontendGestureClassifier {
 
     switch (gesture) {
       case "AIR_TAP":
+        return { action: "CONFIRM" };
       case "PINCH":
         return { action: "TAP", x: latestSmoothedPhysicalCoords.x, y: latestSmoothedPhysicalCoords.y };
       case "SWIPE_LEFT":
-        return { action: "SWIPE", startX: screenW * 0.8, startY: screenH * 0.5, endX: screenW * 0.2, endY: screenH * 0.5, duration: 300 };
+        return { action: "BACK" };
       case "SWIPE_RIGHT":
-        return { action: "SWIPE", startX: screenW * 0.2, startY: screenH * 0.5, endX: screenW * 0.8, endY: screenH * 0.5, duration: 300 };
+        return { action: "FORWARD" };
       case "SWIPE_UP":
-        return { action: "SWIPE", startX: screenW * 0.5, startY: screenH * 0.7, endX: screenW * 0.5, endY: screenH * 0.3, duration: 300 };
+        return { action: "SCROLL_UP" };
       case "SWIPE_DOWN":
-        return { action: "SWIPE", startX: screenW * 0.5, startY: screenH * 0.3, endX: screenW * 0.5, endY: screenH * 0.7, duration: 300 };
+        return { action: "SCROLL_DOWN" };
       case "FIST":
-        return { action: "EMERGENCY_STOP" };
+        return { action: "RESET_STATE" };
       case "OPEN_PALM":
-        return { action: "PAUSE_GESTURES" };
+        return { action: "NONE" };
       case "THUMBS_UP":
         return { action: "CONFIRM" };
       case "THUMBS_DOWN":

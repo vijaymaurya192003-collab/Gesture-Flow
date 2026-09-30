@@ -88,15 +88,7 @@ class ActionDispatcher:
 
         action_enum = SafeActionType(action_name)
 
-        # 2. Reset State Handling
-        if action_enum == SafeActionType.RESET_STATE:
-            if self._desktop_executor:
-                self._desktop_executor.execute(action_enum)
-            if self.on_action_dispatched:
-                self.on_action_dispatched(result.gesture, "RESET_STATE")
-            return True
-
-        # 3. Emergency Stop Handling
+        # 2. Emergency Stop Handling
         if action_enum == SafeActionType.EMERGENCY_STOP:
             self.emergency_stopped = True
             print("[ActionDispatcher] !!! EMERGENCY STOP TRIGGERED - Actions Locked !!!")

@@ -123,6 +123,21 @@ class LocalStorageManager:
                     description=data.get("description", "")
                 )
                 self.save_mapping(item)
+            else:
+                # Migrate legacy default mappings
+                legacy_updates = {
+                    "SWIPE_RIGHT": ("HOME", SafeActionType.FORWARD.value),
+                    "AIR_TAP": ("TAP", SafeActionType.CONFIRM.value),
+                    "OPEN_PALM": ("PAUSE_GESTURES", SafeActionType.NONE.value),
+                    "FIST": ("EMERGENCY_STOP", SafeActionType.RESET_STATE.value)
+                }
+                if g_name in legacy_updates:
+                    old_act, new_act = legacy_updates[g_name]
+                    if existing[g_name].action == old_act:
+                        item = existing[g_name]
+                        item.action = new_act
+                        item.description = data.get("description", "")
+                        self.save_mapping(item)
 
     # --- Gesture Mappings CRUD ---
 

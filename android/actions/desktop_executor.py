@@ -226,34 +226,10 @@ class DesktopActionExecutor:
                     self._pyautogui.press('esc')
                 return True
 
-            # 7. BACK (Alt + Left) / FORWARD (Alt + Right) / HOME (Win + D) / RECENTS (Alt + Tab)
+            # 7. BACK (Alt + Left) / HOME (Win + D) / RECENTS (Alt + Tab)
             elif action == SafeActionType.BACK:
-                if self._has_windows_api:
-                    VK_MENU = 0x12
-                    VK_LEFT = 0x25
-                    ctypes.windll.user32.keybd_event(VK_MENU, 0, 0, 0)
-                    ctypes.windll.user32.keybd_event(VK_LEFT, 0, 0, 0)
-                    ctypes.windll.user32.keybd_event(VK_LEFT, 0, 2, 0)
-                    ctypes.windll.user32.keybd_event(VK_MENU, 0, 2, 0)
-                elif self._pyautogui:
+                if self._pyautogui:
                     self._pyautogui.hotkey('alt', 'left')
-                return True
-
-            elif action == SafeActionType.FORWARD:
-                if self._has_windows_api:
-                    VK_MENU = 0x12
-                    VK_RIGHT = 0x27
-                    ctypes.windll.user32.keybd_event(VK_MENU, 0, 0, 0)
-                    ctypes.windll.user32.keybd_event(VK_RIGHT, 0, 0, 0)
-                    ctypes.windll.user32.keybd_event(VK_RIGHT, 0, 2, 0)
-                    ctypes.windll.user32.keybd_event(VK_MENU, 0, 2, 0)
-                elif self._pyautogui:
-                    self._pyautogui.hotkey('alt', 'right')
-                return True
-
-            elif action == SafeActionType.RESET_STATE:
-                self._last_cursor_x = self._screen_w // 2
-                self._last_cursor_y = self._screen_h // 2
                 return True
 
             elif action == SafeActionType.HOME:
